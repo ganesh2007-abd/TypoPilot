@@ -9,6 +9,7 @@ import sys
 from PyQt6.QtWidgets import QApplication
 
 from config import TypoPilotConfig
+from core.keyboard_manager import KeyboardManager
 from ui.settings_window import SettingsWindow
 from ui.tray_manager import TrayManager
 
@@ -23,12 +24,17 @@ class TypoPilotApp:
         # Initialize System Tray
         self.tray_manager = TrayManager(self.config)
 
+        # Initialize Global Keyboard Listener
+        self.keyboard_manager = KeyboardManager(self.config)
+        self.keyboard_manager.start()
+
         # Settings window reference (created on demand)
         self.settings_window: SettingsWindow | None = None
 
         # Wire up tray events
         self.tray_manager.settings_requested.connect(self.show_settings)
         self.tray_manager.status_changed.connect(self._on_status_changed)
+        self.tray_manager.quit_requested.connect(self._on_quit)
 
         # Show welcome notification on startup
         if self.config.tray_notifications:
@@ -51,11 +57,16 @@ class TypoPilotApp:
         """Called when settings are updated and saved."""
         self.config = updated_config
         self.tray_manager.update_icon()
+        self.keyboard_manager.reload_bindings()
 
     def _on_status_changed(self, enabled: bool) -> None:
         """Called when enabled state is toggled from tray menu."""
         if self.settings_window and self.settings_window.isVisible():
             self.settings_window.enabled_cb.setChecked(enabled)
+
+    def _on_quit(self) -> None:
+        """Clean shutdown hook."""
+        self.keyboard_manager.stop()
 
 
 def main() -> int:

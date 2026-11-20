@@ -56,7 +56,11 @@ class SettingsWindow(QDialog):
 
         self.word_shortcut_input = QLineEdit()
         self.word_shortcut_input.setPlaceholderText("e.g. F2")
-        shortcuts_form.addRow("Word Correction / Cycle:", self.word_shortcut_input)
+        shortcuts_form.addRow("Next Prediction / Activate:", self.word_shortcut_input)
+
+        self.word_prev_shortcut_input = QLineEdit()
+        self.word_prev_shortcut_input.setPlaceholderText("e.g. Shift+F2")
+        shortcuts_form.addRow("Previous Prediction:", self.word_prev_shortcut_input)
 
         self.sentence_shortcut_input = QLineEdit()
         self.sentence_shortcut_input.setPlaceholderText("e.g. Ctrl+F2")
@@ -64,7 +68,7 @@ class SettingsWindow(QDialog):
 
         self.cancel_shortcut_input = QLineEdit()
         self.cancel_shortcut_input.setPlaceholderText("e.g. Esc")
-        shortcuts_form.addRow("Cancel / Restore Original:", self.cancel_shortcut_input)
+        shortcuts_form.addRow("Restore Original Word:", self.cancel_shortcut_input)
 
         shortcuts_layout.addWidget(shortcuts_group)
         shortcuts_layout.addStretch()
@@ -142,6 +146,7 @@ class SettingsWindow(QDialog):
     def _load_values(self) -> None:
         """Populates UI widgets with current configuration."""
         self.word_shortcut_input.setText(self.config.word_correction_shortcut)
+        self.word_prev_shortcut_input.setText(self.config.word_correction_prev_shortcut)
         self.sentence_shortcut_input.setText(self.config.sentence_correction_shortcut)
         self.cancel_shortcut_input.setText(self.config.cancel_shortcut)
 
@@ -158,6 +163,7 @@ class SettingsWindow(QDialog):
     def _on_save(self) -> None:
         """Persists values to config object and saves to disk."""
         self.config.word_correction_shortcut = self.word_shortcut_input.text().strip() or "F2"
+        self.config.word_correction_prev_shortcut = self.word_prev_shortcut_input.text().strip() or "Shift+F2"
         self.config.sentence_correction_shortcut = self.sentence_shortcut_input.text().strip() or "Ctrl+F2"
         self.config.cancel_shortcut = self.cancel_shortcut_input.text().strip() or "Esc"
 

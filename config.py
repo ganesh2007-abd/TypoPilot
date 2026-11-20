@@ -22,9 +22,10 @@ class TypoPilotConfig:
     tray_notifications: bool = True
 
     # Keyboard Shortcuts (human-readable string format)
-    word_correction_shortcut: str = "F2"
-    sentence_correction_shortcut: str = "Ctrl+F2"
-    cancel_shortcut: str = "Esc"
+    word_correction_shortcut: str = "F2"            # Next candidate / Activate
+    word_correction_prev_shortcut: str = "Shift+F2" # Previous candidate
+    sentence_correction_shortcut: str = "Ctrl+F2"  # Sentence correction
+    cancel_shortcut: str = "Esc"                   # Restore original misspelled text
     undo_shortcut: str = "Ctrl+Alt+Z"
 
     # NLP Word Correction Settings
