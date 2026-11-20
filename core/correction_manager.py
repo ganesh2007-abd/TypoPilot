@@ -16,6 +16,7 @@ from config import TypoPilotConfig
 from core.keyboard_manager import KeyboardManager
 from core.text_handler import DetectedWord, TextHandler, preserve_capitalization
 from core.undo_manager import UndoManager
+from nlp.sentence_corrector import SentenceCorrector
 from nlp.spell_checker import SpellChecker
 
 
@@ -57,8 +58,8 @@ class CorrectionManager:
         self.keyboard_manager.on_cancel_restore = self.handle_cancel_restore
         self.keyboard_manager.on_sentence_correction = self.handle_sentence_correction
 
-        # Optional sentence corrector hook (populated in Phase 8)
-        self.sentence_corrector = None
+        # Sentence corrector engine (Dual-mode: local CPU rules + GPU neural adapter)
+        self.sentence_corrector = SentenceCorrector(self.config, self.spell_checker)
 
     def _is_session_valid(self) -> bool:
         """Checks if current session is active and not timed out."""
