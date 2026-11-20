@@ -55,6 +55,10 @@ class CorrectionManager:
         self.keyboard_manager.on_word_correction_next = self.handle_next_prediction
         self.keyboard_manager.on_word_correction_prev = self.handle_prev_prediction
         self.keyboard_manager.on_cancel_restore = self.handle_cancel_restore
+        self.keyboard_manager.on_sentence_correction = self.handle_sentence_correction
+
+        # Optional sentence corrector hook (populated in Phase 8)
+        self.sentence_corrector = None
 
     def _is_session_valid(self) -> bool:
         """Checks if current session is active and not timed out."""
@@ -138,6 +142,89 @@ class CorrectionManager:
             self._apply_candidate(session, new_index)
 
     def handle_cancel_restore(self) -> None:
+        """Handles Esc (Restore Original Misspelled Word)."""
+        if not self.config.enabled:
+            return
+
+        with self._lock:
+            if not self._is_session_valid():
+                return
+
+            session = self._active_session
+            assert session is not None
+
+            # Original token restoration
+            orig_token = session.detected_token.full_token
+
+            # Replace current candidate with original token
+            self._execute_replacement(
+                old_token=session.last_replaced_token,
+                new_token=orig_token,
+                method="uia",  # After cycling, cursor is positioned at end of replaced word
+            )
+
+            # Reset active session
+            self._active_session = None
+
+    def handle_sentence_correction(self) -> None:
+        """Handles Ctrl+F2 (Sentence / Paragraph Correction)."""
+        if not self.config.enabled:
+            return
+
+        with self._lock:
+            # 1. Retrieve highlighted / selected text
+            selected_text, clip_backup = self.text_handler.get_selected_text()
+            if not selected_text or not selected_text.strip():
+                return
+
+            corrected_text = selected_text
+
+            # 2. If dedicated sentence corrector is registered (Phase 8), run it
+            if self.sentence_corrector is not None:
+                try:
+                    corrected_text = self.sentence_corrector.correct_text(selected_text)
+                except Exception as e:
+                    print(f"[TypoPilot] Sentence correction error: {e}")
+                    return
+            else:
+                # Baseline multi-word spelling pass on selected text
+                corrected_text = self._correct_sentence_spelling(selected_text)
+
+            if not corrected_text or corrected_text == selected_text:
+                return
+
+            # 3. Store in undo history
+            self.undo_manager.record_sentence_correction(
+                original=selected_text,
+                corrected=corrected_text,
+            )
+
+            # 4. Safely replace selected text while suppressing keyboard hooks
+            self.keyboard_manager.suppress_hooks = True
+            try:
+                self.text_handler.replace_selected_text(
+                    new_text=corrected_text,
+                    clipboard_backup=clip_backup,
+                )
+            finally:
+                self.keyboard_manager.suppress_hooks = False
+
+    def _correct_sentence_spelling(self, text: str) -> str:
+        """Baseline sentence tokenizer that fixes misspelled words within selected text."""
+        import re
+        tokens = re.split(r"(\w+)", text)
+        result = []
+        for token in tokens:
+            if token.isalpha() and not self.spell_checker.is_correct(token):
+                suggestions = self.spell_checker.get_suggestions(token, max_suggestions=1)
+                if suggestions:
+                    cased = preserve_capitalization(token, suggestions[0])
+                    result.append(cased)
+                else:
+                    result.append(token)
+            else:
+                result.append(token)
+        return "".join(result)
         """Handles Esc (Restore Original Misspelled Word)."""
         if not self.config.enabled:
             return

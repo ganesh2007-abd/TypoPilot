@@ -196,6 +196,87 @@ class TextHandler:
         # Fallback to selection-based word detection
         return self.detect_word_via_selection_fallback()
 
+    def get_selected_text(self) -> Tuple[Optional[str], Optional[str]]:
+        """Retrieves currently highlighted/selected text in the active window.
+
+        Returns:
+            Tuple of (selected_text, clipboard_backup_to_restore_later).
+        """
+        if self.is_secure_or_password_field():
+            return None, None
+
+        # 1. Try via UI Automation TextPattern (zero clipboard impact)
+        try:
+            element = self.get_focused_element()
+            if element is not None:
+                pattern = element.GetPattern(auto.PatternId.TextPattern)
+                if pattern is not None:
+                    selection = pattern.GetSelection()
+                    if selection and len(selection) > 0:
+                        text = selection[0].GetText(-1)
+                        if text and text.strip():
+                            # Successfully got selected text with 0 clipboard modification
+                            return text, None
+        except Exception:
+            pass
+
+        # 2. Universal fallback: Ctrl+C with clipboard backup
+        clipboard_backup = ""
+        try:
+            clipboard_backup = pyperclip.paste()
+        except Exception:
+            pass
+
+        try:
+            # Tap Ctrl+C
+            with self.keyboard_controller.pressed(Key.ctrl):
+                self.keyboard_controller.tap("c")
+            time.sleep(0.04)
+
+            selected_text = pyperclip.paste()
+            if selected_text and selected_text.strip():
+                return selected_text, clipboard_backup
+        except Exception:
+            pass
+
+        # If nothing was selected, restore clipboard immediately
+        try:
+            pyperclip.copy(clipboard_backup)
+        except Exception:
+            pass
+
+        return None, None
+
+    def replace_selected_text(self, new_text: str, clipboard_backup: Optional[str] = None) -> bool:
+        """Replaces currently selected text with new_text and restores original clipboard."""
+        if not new_text:
+            return False
+
+        orig_clipboard = clipboard_backup
+        if orig_clipboard is None:
+            try:
+                orig_clipboard = pyperclip.paste()
+            except Exception:
+                orig_clipboard = ""
+
+        try:
+            # Copy new text to clipboard
+            pyperclip.copy(new_text)
+            time.sleep(0.02)
+
+            # Paste into target application (Ctrl+V)
+            with self.keyboard_controller.pressed(Key.ctrl):
+                self.keyboard_controller.tap("v")
+            time.sleep(0.04)
+            return True
+        finally:
+            # Always restore user's original clipboard
+            try:
+                if orig_clipboard is not None:
+                    pyperclip.copy(orig_clipboard)
+            except Exception:
+                pass
+
     def replace_word(self, detected: DetectedWord, new_word: str) -> bool:
         """Replaces the detected misspelled word with the new word,
 
