@@ -1,0 +1,21 @@
+# TypoPilot Core Dependencies
+
+# Desktop UI and System Tray
+PyQt6>=6.11.0
+PyQt6-Qt6>=6.11.0
+PyQt6_sip>=13.11.0
+
+# Windows System and Accessibility APIs
+pywin32>=311
+comtypes>=1.4.16
+uiautomation>=2.0.29
+pyperclip>=1.11.0
+
+# Global Keyboard Hook
+pynput>=1.8.2
+
+# Fast Word-Level Spelling Correction Engine
+symspellpy>=6.10.2
+
+# Testing Framework
+pytest>=8.0.0
