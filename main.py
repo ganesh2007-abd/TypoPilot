@@ -9,6 +9,7 @@ import sys
 from PyQt6.QtWidgets import QApplication
 
 from config import TypoPilotConfig
+from core.correction_manager import CorrectionManager
 from core.keyboard_manager import KeyboardManager
 from ui.settings_window import SettingsWindow
 from ui.tray_manager import TrayManager
@@ -26,6 +27,11 @@ class TypoPilotApp:
 
         # Initialize Global Keyboard Listener
         self.keyboard_manager = KeyboardManager(self.config)
+
+        # Initialize Correction Manager (Word-level real-time NLP coordinator)
+        self.correction_manager = CorrectionManager(self.config, self.keyboard_manager)
+
+        # Start keyboard hook
         self.keyboard_manager.start()
 
         # Settings window reference (created on demand)
