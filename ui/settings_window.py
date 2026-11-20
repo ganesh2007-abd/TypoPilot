@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import (
 )
 
 from config import TypoPilotConfig
+from core.startup_manager import StartupManager
 
 
 class SettingsWindow(QDialog):
@@ -119,6 +120,9 @@ class SettingsWindow(QDialog):
         self.enabled_cb = QCheckBox("TypoPilot Active (Enabled)")
         general_form.addRow(self.enabled_cb)
 
+        self.startup_cb = QCheckBox("Start TypoPilot automatically with Windows")
+        general_form.addRow(self.startup_cb)
+
         self.notifications_cb = QCheckBox("Show tray balloon notifications on status changes")
         general_form.addRow(self.notifications_cb)
 
@@ -158,6 +162,7 @@ class SettingsWindow(QDialog):
         self.gpu_cb.setChecked(self.config.use_gpu_if_available)
 
         self.enabled_cb.setChecked(self.config.enabled)
+        self.startup_cb.setChecked(StartupManager.is_startup_enabled())
         self.notifications_cb.setChecked(self.config.tray_notifications)
 
     def _on_save(self) -> None:
@@ -175,6 +180,8 @@ class SettingsWindow(QDialog):
         self.config.use_gpu_if_available = self.gpu_cb.isChecked()
 
         self.config.enabled = self.enabled_cb.isChecked()
+        self.config.start_with_windows = self.startup_cb.isChecked()
+        StartupManager.set_startup(self.config.start_with_windows)
         self.config.tray_notifications = self.notifications_cb.isChecked()
 
         self.config.save()

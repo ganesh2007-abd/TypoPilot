@@ -11,6 +11,8 @@ from PyQt6.QtWidgets import QApplication
 from config import TypoPilotConfig
 from core.correction_manager import CorrectionManager
 from core.keyboard_manager import KeyboardManager
+from nlp.sentence_corrector import SentenceCorrector
+from nlp.spell_checker import SpellChecker
 from ui.settings_window import SettingsWindow
 from ui.tray_manager import TrayManager
 
@@ -64,6 +66,14 @@ class TypoPilotApp:
         self.config = updated_config
         self.tray_manager.update_icon()
         self.keyboard_manager.reload_bindings()
+        self.correction_manager.spell_checker = SpellChecker(updated_config)
+        self.correction_manager.sentence_corrector = SentenceCorrector(
+            updated_config, self.correction_manager.spell_checker
+        )
+        if self.config.tray_notifications:
+            self.tray_manager.show_notification(
+                "TypoPilot Settings", "Settings have been updated successfully."
+            )
 
     def _on_status_changed(self, enabled: bool) -> None:
         """Called when enabled state is toggled from tray menu."""
