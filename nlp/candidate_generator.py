@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import List, Optional
-import pkg_resources
+import importlib.resources
 from symspellpy import SymSpell, Verbosity
 
 
@@ -35,11 +35,10 @@ class CandidateGenerator:
         if self._loaded:
             return
 
-        dict_path = pkg_resources.resource_filename(
+        with importlib.resources.path(
             "symspellpy", "frequency_dictionary_en_82_765.txt"
-        )
-        # term_index=0, count_index=1
-        self.sym_spell.load_dictionary(dict_path, term_index=0, count_index=1)
+        ) as dict_path:
+            self.sym_spell.load_dictionary(str(dict_path), term_index=0, count_index=1)
         self._loaded = True
 
     def is_known_word(self, word: str) -> bool:

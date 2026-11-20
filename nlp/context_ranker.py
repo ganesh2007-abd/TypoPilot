@@ -6,9 +6,10 @@ to rank candidate words given their preceding sentence context.
 
 from __future__ import annotations
 
+import importlib.resources
 import math
+import threading
 from typing import Dict, List, Optional
-import pkg_resources
 from symspellpy import SymSpell
 
 from nlp.candidate_generator import CandidateItem
@@ -23,22 +24,31 @@ class ContextRanker:
             self.sym_spell = sym_spell
         else:
             self.sym_spell = SymSpell(max_dictionary_edit_distance=2)
-            dict_path = pkg_resources.resource_filename(
+            with importlib.resources.path(
                 "symspellpy", "frequency_dictionary_en_82_765.txt"
-            )
-            self.sym_spell.load_dictionary(dict_path, term_index=0, count_index=1)
+            ) as dict_path:
+                self.sym_spell.load_dictionary(str(dict_path), term_index=0, count_index=1)
 
+        self._bigrams_loaded = False
         self._load_bigrams()
 
     def _load_bigrams(self) -> None:
-        """Loads English bigram frequency dictionary (243,342 bigrams)."""
+        """Loads English bigram frequency dictionary (243,342 bigrams) in background."""
         if hasattr(self.sym_spell, "bigrams") and self.sym_spell.bigrams:
+            self._bigrams_loaded = True
             return
 
-        bigram_path = pkg_resources.resource_filename(
-            "symspellpy", "frequency_bigramdictionary_en_243_342.txt"
-        )
-        self.sym_spell.load_bigram_dictionary(bigram_path, term_index=0, count_index=2)
+        def async_loader():
+            try:
+                with importlib.resources.path(
+                    "symspellpy", "frequency_bigramdictionary_en_243_342.txt"
+                ) as bigram_path:
+                    self.sym_spell.load_bigram_dictionary(str(bigram_path), term_index=0, count_index=2)
+                self._bigrams_loaded = True
+            except Exception as e:
+                print(f"[TypoPilot] Bigram load warning: {e}")
+
+        threading.Thread(target=async_loader, daemon=True).start()
 
     def calculate_score(
         self,

@@ -91,10 +91,15 @@ def main() -> int:
     app.setApplicationName("TypoPilot")
     app.setApplicationDisplayName("TypoPilot")
 
-    # Crucial: Prevent app from terminating when settings window is closed
+    # Prevent app from terminating when windows are closed
     app.setQuitOnLastWindowClosed(False)
 
     pilot_app = TypoPilotApp(app)
+
+    # If launched manually (or --show-settings is passed), display the settings/status window immediately
+    # so the user has visual confirmation that TypoPilot is running!
+    if "--silent" not in sys.argv:
+        pilot_app.show_settings()
 
     return app.exec()
 
