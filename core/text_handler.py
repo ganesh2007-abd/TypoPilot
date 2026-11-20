@@ -261,14 +261,18 @@ class TextHandler:
 
         try:
             # Copy new text to clipboard
-            pyperclip.copy(new_text)
-            time.sleep(0.02)
-
-            # Paste into target application (Ctrl+V)
-            with self.keyboard_controller.pressed(Key.ctrl):
-                self.keyboard_controller.tap("v")
-            time.sleep(0.04)
-            return True
+            try:
+                pyperclip.copy(new_text)
+                time.sleep(0.02)
+                # Paste into target application (Ctrl+V)
+                with self.keyboard_controller.pressed(Key.ctrl):
+                    self.keyboard_controller.tap("v")
+                time.sleep(0.04)
+                return True
+            except Exception:
+                # Fallback: if clipboard is locked or restricted, type directly
+                self.type_string(new_text)
+                return True
         finally:
             # Always restore user's original clipboard
             try:
