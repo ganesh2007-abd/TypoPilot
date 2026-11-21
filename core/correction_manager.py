@@ -73,6 +73,7 @@ class CorrectionManager:
     def handle_next_prediction(self) -> None:
         """Handles F2 (Next Prediction or Initial Activation)."""
         if not self.config.enabled:
+            print("[TypoPilot] Key received, but TypoPilot is disabled in config.")
             return
 
         with self._lock:
@@ -81,13 +82,17 @@ class CorrectionManager:
                 session = self._active_session
                 assert session is not None
                 new_index = (session.current_index + 1) % len(session.candidates)
+                print(f"[TypoPilot] Cycling candidate: '{session.candidates[new_index]}'")
                 self._apply_candidate(session, new_index)
                 return
 
             # Case 2: New correction activation at cursor
             detected = self.text_handler.detect_word_at_cursor()
             if detected is None:
+                print("[TypoPilot] F2 pressed, but no word detected at cursor.")
                 return
+
+            print(f"[TypoPilot] Detected word at cursor: '{detected.raw_word}' (Method: {detected.method})")
 
             # Query NLP suggestions with preceding context
             suggestions = self.spell_checker.get_suggestions(
