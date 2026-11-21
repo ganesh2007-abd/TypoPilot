@@ -1,5 +1,5 @@
 {
-    "enabled": true,
+    "enabled": false,
     "start_with_windows": false,
     "tray_notifications": true,
     "word_correction_shortcut": "F2",

@@ -1,0 +1,62 @@
+[
+  {
+    "input": "it go well for me.",
+    "expected": "It goes well for me."
+  },
+  {
+    "input": "he go to college everyday.",
+    "expected": "He goes to college every day."
+  },
+  {
+    "input": "she don't like mathematics.",
+    "expected": "She doesn't like mathematics."
+  },
+  {
+    "input": "they was playing football in the ground.",
+    "expected": "They were playing football in the ground."
+  },
+  {
+    "input": "i has completed my assignment.",
+    "expected": "I have completed my assignment."
+  },
+  {
+    "input": "she have a new car.",
+    "expected": "She has a new car."
+  },
+  {
+    "input": "we was watching movies all night.",
+    "expected": "We were watching movies all night."
+  },
+  {
+    "input": "it don't matter what they think.",
+    "expected": "It doesn't matter what they think."
+  },
+  {
+    "input": "they has arrived at the station.",
+    "expected": "They have arrived at the station."
+  },
+  {
+    "input": "yesterday i recieved your email and reviewed it.",
+    "expected": "Yesterday I received your email and reviewed it."
+  },
+  {
+    "input": "he don't want to attend the meeting.",
+    "expected": "He doesn't want to attend the meeting."
+  },
+  {
+    "input": "we does our homework everyday.",
+    "expected": "We do our homework every day."
+  },
+  {
+    "input": "this is definately a great oppurtunity.",
+    "expected": "This is definitely a great opportunity."
+  },
+  {
+    "input": "she go to school everyday and attend classes regularly.",
+    "expected": "She goes to school every day and attends classes regularly."
+  },
+  {
+    "input": "they was not aware of the new rules.",
+    "expected": "They were not aware of the new rules."
+  }
+]
