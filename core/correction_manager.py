@@ -6,6 +6,7 @@ two-way prediction cycling (Next / Previous), and restoration of original text.
 
 from __future__ import annotations
 
+import re
 import threading
 import time
 from dataclasses import dataclass
@@ -61,13 +62,30 @@ class CorrectionManager:
         # Sentence corrector engine (Dual-mode: local CPU rules + GPU neural adapter)
         self.sentence_corrector = SentenceCorrector(self.config, self.spell_checker)
 
-    def _is_session_valid(self) -> bool:
-        """Checks if current session is active and not timed out."""
+    def _is_session_valid(self, detected: Optional[DetectedWord] = None) -> bool:
+        """Checks if current session is active, not timed out, and matches the word at cursor."""
         if self._active_session is None:
             return False
         if (time.time() - self._active_session.last_active_time) > self.session_timeout:
             self._active_session = None
             return False
+
+        # If a word is detected at cursor, verify the cursor is still on the same session word
+        if detected is not None:
+            raw_lower = detected.raw_word.lower()
+            orig_lower = self._active_session.original_word.lower()
+            last_clean = re.sub(r"[^\w'-]", "", self._active_session.last_replaced_token).lower()
+            candidate_lowers = {c.lower() for c in self._active_session.candidates}
+
+            # If the word at cursor matches the original typo, last replacement, or any candidate, it's the same word
+            if raw_lower == orig_lower or raw_lower == last_clean or raw_lower in candidate_lowers:
+                return True
+            else:
+                # User moved the cursor to a different word! Expire the previous cycling session immediately
+                print(f"[TypoPilot] Cursor moved from '{orig_lower}' to '{raw_lower}'. Resetting cycling session.")
+                self._active_session = None
+                return False
+
         return True
 
     def handle_next_prediction(self) -> None:
@@ -77,8 +95,10 @@ class CorrectionManager:
             return
 
         with self._lock:
-            # Case 1: Already cycling an active word
-            if self._is_session_valid():
+            detected = self.text_handler.detect_word_at_cursor()
+
+            # Case 1: Already cycling an active word at this cursor position
+            if self._is_session_valid(detected):
                 session = self._active_session
                 assert session is not None
                 new_index = (session.current_index + 1) % len(session.candidates)
@@ -87,7 +107,6 @@ class CorrectionManager:
                 return
 
             # Case 2: New correction activation at cursor
-            detected = self.text_handler.detect_word_at_cursor()
             if detected is None:
                 print("[TypoPilot] F2 pressed, but no word detected at cursor.")
                 return
@@ -160,7 +179,8 @@ class CorrectionManager:
             return
 
         with self._lock:
-            if not self._is_session_valid():
+            detected = self.text_handler.detect_word_at_cursor()
+            if not self._is_session_valid(detected):
                 return
 
             session = self._active_session
@@ -174,7 +194,8 @@ class CorrectionManager:
             return
 
         with self._lock:
-            if not self._is_session_valid():
+            detected = self.text_handler.detect_word_at_cursor()
+            if not self._is_session_valid(detected):
                 return
 
             session = self._active_session

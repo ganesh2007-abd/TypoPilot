@@ -144,3 +144,55 @@ def test_correct_word_is_skipped():
     cm.handle_next_prediction()
     assert cm._active_session is None
     assert len(mock_handler.typed_strings) == 0
+
+
+def test_cursor_moved_to_different_word_resets_session():
+    """Verify that moving the cursor to a different word resets active cycling session."""
+    cfg = TypoPilotConfig(max_suggestions=3)
+    km = KeyboardManager(cfg)
+
+    # Word 1: unforunately
+    word1 = DetectedWord(
+        raw_word="unforunately",
+        full_token="unforunately",
+        trailing_punctuation="",
+        leading_punctuation="",
+        context_before="accomodate seperate",
+        context_after="",
+        method="uia",
+    )
+    # Word 2: seperate
+    word2 = DetectedWord(
+        raw_word="seperate",
+        full_token="seperate",
+        trailing_punctuation="",
+        leading_punctuation="",
+        context_before="accomodate",
+        context_after=" unforunately",
+        method="uia",
+    )
+
+    mock_handler = MockTextHandler(word1)
+    mock_handler.keyboard_controller = MockKeyboardController(mock_handler)
+
+    cm = CorrectionManager(
+        config=cfg,
+        keyboard_manager=km,
+        text_handler=mock_handler,
+    )
+
+    # 1. Press F2 on word 1 (unforunately)
+    cm.handle_next_prediction()
+    assert cm._active_session is not None
+    assert cm._active_session.original_word == "unforunately"
+    assert "unfortunately" in mock_handler.typed_strings[-1]
+
+    # 2. User moves cursor backwards to word 2 (seperate)
+    mock_handler.mock_detected = word2
+
+    # 3. Press F2 on word 2 (seperate) within session timeout
+    cm.handle_next_prediction()
+    assert cm._active_session is not None
+    # Session must now be for 'seperate', NOT cycling 'unforunately'
+    assert cm._active_session.original_word == "seperate"
+    assert "separate" in mock_handler.typed_strings[-1]
