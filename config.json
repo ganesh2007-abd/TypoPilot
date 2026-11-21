@@ -1,5 +1,5 @@
 {
-    "enabled": false,
+    "enabled": true,
     "start_with_windows": false,
     "tray_notifications": true,
     "word_correction_shortcut": "F2",
@@ -11,7 +11,7 @@
     "prefix_length": 7,
     "max_suggestions": 5,
     "case_sensitive_preservation": true,
-    "sentence_correction_enabled": false,
-    "sentence_model_name": "t5-small",
+    "sentence_correction_enabled": true,
+    "sentence_model_name": "Unbabel/gec-t5_small",
     "use_gpu_if_available": true
 }

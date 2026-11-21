@@ -35,8 +35,8 @@ class TypoPilotConfig:
     case_sensitive_preservation: bool = True
 
     # NLP Sentence Correction Settings
-    sentence_correction_enabled: bool = False
-    sentence_model_name: str = "t5-small"
+    sentence_correction_enabled: bool = True
+    sentence_model_name: str = "Unbabel/gec-t5_small"
     use_gpu_if_available: bool = True
 
     @classmethod

@@ -19,3 +19,8 @@ symspellpy>=6.10.2
 
 # Testing Framework
 pytest>=8.0.0
+
+# Neural Grammar Error Correction (Quantized INT8 CPU / FP16 GPU)
+torch>=2.0.0
+transformers>=4.30.0
+accelerate>=0.20.0

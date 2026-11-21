@@ -162,8 +162,8 @@ class KeyboardManager:
             matched_action: str | None = None
             matched_callback: Callable[[], None] | None = None
 
-            # Priority 1: Sentence correction (usually Ctrl+F2)
-            if self._matches_binding(self._hotkey_bindings.get("sentence", set())):
+            # Priority 1: Sentence correction (Ctrl+F2 or F3 / Fn+F3 on laptops)
+            if self._matches_binding(self._hotkey_bindings.get("sentence", set())) or self._matches_binding({Key.f3}):
                 matched_action = "sentence"
                 matched_callback = self.on_sentence_correction
             # Priority 2: Word correction previous (usually Shift+F2)

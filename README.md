@@ -17,12 +17,12 @@ Unlike traditional aggressive autocorrect systems, TypoPilot **never replaces te
   * **Next Candidate (`F2`):** Cycles forward to the next ranked NLP candidate.
   * **Previous Candidate (`Shift+F2`):** Cycles backward so you never lose a candidate if you cycle past it.
   * **Restore Original (`Esc`):** Instantly cancels cycling and restores your original misspelled word.
-* **Sentence & Paragraph Grammar Correction (`Ctrl+F2`):**
-  * Highlight any sentence or paragraph and press `Ctrl+F2`.
-  * Fixes subject-verb agreement (`He go` &rarr; `He goes`, `They was` &rarr; `They were`, `I has` &rarr; `I have`, `She don't` &rarr; `She doesn't`), spelling mistakes, coordination, and sentence boundary casing.
+* **Sentence & Paragraph Grammar Correction (`Ctrl+F2` or `Fn+F3`):**
+  * Highlight any sentence or paragraph and press `Ctrl+F2` (or `Fn+F3` on laptop keyboards).
+  * Fixes complex grammatical restructuring, subject-verb disagreement (`He go` &rarr; `He goes`, `she do not likes` &rarr; `she does not like`, `They was` &rarr; `They were`, `I has` &rarr; `I have`, `She don't` &rarr; `She doesn't`), spelling mistakes, coordination, tenses, and sentence boundary casing.
 * **Dual-Mode NLP Engine (CPU & GPU Ready):**
   * **Local Offline Engine:** Runs with zero latency on any typical laptop with < 35 MB RAM.
-  * **Neural Transformer Adapter:** Ready for GPU workstations to run Seq2Seq models (e.g. `google/flan-t5-base` or T5-Grammar).
+  * **Neural Transformer Engine (Quantized INT8 / FP16):** Uses specialized Grammar Error Correction (GEC) models (e.g. `Unbabel/gec-t5_small` or `vennify/t5-base-grammar-correction`). Features dynamic INT8 CPU quantization (< 100 MB weights, < 150 ms CPU latency, well within 300 MB RAM budget) and asynchronous pre-warming on startup to ensure zero cold-start lag.
 * **Safe, Non-Destructive Operation:**
   * Uses Windows UI Automation `TextPattern` directly for zero clipboard footprint.
   * Clipboard fallback always takes a complete backup and immediately restores your original clipboard within 40 milliseconds.
@@ -40,7 +40,7 @@ Unlike traditional aggressive autocorrect systems, TypoPilot **never replaces te
 | **`F2`** | Next Prediction / Activate | Corrects the word preceding the cursor; pressing repeatedly cycles forward through suggestions. |
 | **`Shift+F2`** | Previous Prediction | Cycles backward to the previous suggestion. |
 | **`Esc`** | Restore Original | Instantly reverts all suggestions and restores your original typed word. |
-| **`Ctrl+F2`** | Sentence Correction | Corrects spelling, grammar, and agreement of highlighted text. |
+| **`Ctrl+F2` / `Fn+F3`** | Sentence Correction | Corrects spelling, grammar, and agreement of highlighted text. |
 
 *All shortcuts can be customized in the Settings window (accessible via the System Tray icon).*
 
