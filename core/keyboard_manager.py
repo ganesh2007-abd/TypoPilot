@@ -7,6 +7,7 @@ using low-level hooks while avoiding infinite loops from simulated typing.
 from __future__ import annotations
 
 import threading
+import time
 from typing import Callable, Dict, Set
 from pynput import keyboard
 from pynput.keyboard import Key, KeyCode
@@ -85,6 +86,8 @@ class KeyboardManager:
 
         # Key state tracking to prevent repeated triggers on key-hold
         self._active_triggered_action: str | None = None
+        self._last_trigger_time: float = 0.0
+        self._debounce_interval: float = 0.15  # seconds debounce to avoid typematic repeats
 
         self._hotkey_bindings: Dict[str, Set[Key | KeyCode]] = {}
         self.reload_bindings()
@@ -143,45 +146,61 @@ class KeyboardManager:
         with self._lock:
             self._current_keys.add(normalized)
 
+            now = time.time()
+
             # Check if any action matched (check more specific modifiers first)
             # Priority 1: Sentence correction (usually Ctrl+F2)
             if self._matches_binding(self._hotkey_bindings.get("sentence", set())):
                 if self._active_triggered_action != "sentence":
+                    if (now - self._last_trigger_time) < self._debounce_interval:
+                        return
                     self._active_triggered_action = "sentence"
+                    self._last_trigger_time = now
                     self._trigger_callback(self.on_sentence_correction)
                 return
 
             # Priority 2: Word correction previous (usually Shift+F2)
             if self._matches_binding(self._hotkey_bindings.get("prev", set())):
                 if self._active_triggered_action != "prev":
+                    if (now - self._last_trigger_time) < self._debounce_interval:
+                        return
                     self._active_triggered_action = "prev"
+                    self._last_trigger_time = now
                     self._trigger_callback(self.on_word_correction_prev)
                 return
 
             # Priority 3: Word correction next / activate (usually F2)
             if self._matches_binding(self._hotkey_bindings.get("next", set())):
                 if self._active_triggered_action != "next":
+                    if (now - self._last_trigger_time) < self._debounce_interval:
+                        return
                     self._active_triggered_action = "next"
+                    self._last_trigger_time = now
                     self._trigger_callback(self.on_word_correction_next)
                 return
 
             # Priority 4: Cancel / Restore original (usually Esc)
             if self._matches_binding(self._hotkey_bindings.get("cancel", set())):
                 if self._active_triggered_action != "cancel":
+                    if (now - self._last_trigger_time) < self._debounce_interval:
+                        return
                     self._active_triggered_action = "cancel"
+                    self._last_trigger_time = now
                     self._trigger_callback(self.on_cancel_restore)
                 return
 
     def _on_release(self, raw_key: Key | KeyCode | None) -> None:
         """Internal callback when a key is released."""
+        if self.suppress_hooks:
+            return
+
         normalized = normalize_key(raw_key)
         with self._lock:
             if normalized in self._current_keys:
-                self._current_keys.remove(normalized)
+                self._current_keys.discard(normalized)
 
-            # Reset triggered state when keys are released
-            if not self._current_keys:
-                self._active_triggered_action = None
+            # Always clear active triggered action on key release so next press responds
+            self._active_triggered_action = None
 
     def _trigger_callback(self, callback: Callable[[], None] | None) -> None:
         """Executes the action callback in a separate thread so listener is never blocked."""

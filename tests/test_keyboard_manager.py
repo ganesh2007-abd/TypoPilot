@@ -49,6 +49,7 @@ def test_keyboard_manager_matching_and_priority():
 
     # 2. Test previous candidate (Shift + F2)
     triggered.clear()
+    km._last_trigger_time = 0.0
     km._on_press(Key.shift)
     km._on_press(Key.f2)
     time.sleep(0.05)
@@ -58,6 +59,7 @@ def test_keyboard_manager_matching_and_priority():
 
     # 3. Test cancel (Esc)
     triggered.clear()
+    km._last_trigger_time = 0.0
     km._on_press(Key.esc)
     time.sleep(0.05)
     assert triggered == ["cancel"]
@@ -65,6 +67,7 @@ def test_keyboard_manager_matching_and_priority():
 
     # 4. Test suppression
     triggered.clear()
+    km._last_trigger_time = 0.0
     km.suppress_hooks = True
     km._on_press(Key.f2)
     time.sleep(0.05)

@@ -126,17 +126,17 @@ def test_correction_preserves_surrounding_whitespace():
         text_handler=mock_handler,
     )
 
-    # First F2 activation
+    # First F2 activation: types leading space + clean token
     cm.handle_next_prediction()
     assert mock_handler.typed_strings[-1] == " receive "
     assert mock_handler.backspaces_tapped == 9
 
-    # Cycle F2
+    # Cycle F2: only replaces the clean word token, leaving leading space intact
     cm.handle_next_prediction()
     second_candidate = cm._active_session.candidates[1]
-    assert mock_handler.typed_strings[-1] == f" {second_candidate} "
+    assert mock_handler.typed_strings[-1] == f"{second_candidate} "
 
-    # Esc restoration
+    # Esc restoration: restores original clean word token with trailing space
     cm.handle_cancel_restore()
-    assert mock_handler.typed_strings[-1] == " recieve "
+    assert mock_handler.typed_strings[-1] == "recieve "
 

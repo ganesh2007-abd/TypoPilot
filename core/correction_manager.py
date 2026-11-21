@@ -104,23 +104,25 @@ class CorrectionManager:
             if not suggestions:
                 return
 
-            # Calculate first replacement token preserving punctuation and spacing
+            # Calculate clean replacement token preserving punctuation and trailing spacing
             cased = preserve_capitalization(detected.raw_word, suggestions[0])
-            first_token = (
-                f"{detected.leading_whitespace}"
+            first_clean_token = (
                 f"{detected.leading_punctuation}"
                 f"{cased}"
                 f"{detected.trailing_punctuation}"
                 f"{detected.trailing_whitespace}"
             )
+            first_typed_token = f"{detected.leading_whitespace}{first_clean_token}"
 
             # Create new session
+            # Note: last_replaced_token stores the clean token (excluding leading whitespace)
+            # so subsequent cycling operations only delete the clean token!
             session = ActiveSession(
                 original_word=detected.raw_word,
                 detected_token=detected,
                 candidates=suggestions,
                 current_index=0,
-                last_replaced_token=first_token,
+                last_replaced_token=first_clean_token,
                 last_active_time=time.time(),
             )
             self._active_session = session
@@ -135,7 +137,7 @@ class CorrectionManager:
             # Perform replacement in target application with suppressed hooks
             self._execute_replacement(
                 old_token=detected.full_token,
-                new_token=first_token,
+                new_token=first_typed_token,
                 method=detected.method,
                 chars_to_delete=detected.chars_to_delete,
                 chars_after_cursor=detected.chars_after_cursor,
@@ -167,10 +169,11 @@ class CorrectionManager:
             session = self._active_session
             assert session is not None
 
-            # Original token restoration preserving whitespace
+            # Original token restoration preserving clean token without deleting leading space
             orig_token = (
-                f"{session.detected_token.leading_whitespace}"
-                f"{session.detected_token.full_token}"
+                f"{session.detected_token.leading_punctuation}"
+                f"{session.original_word}"
+                f"{session.detected_token.trailing_punctuation}"
                 f"{session.detected_token.trailing_whitespace}"
             )
 
@@ -248,7 +251,6 @@ class CorrectionManager:
         candidate = session.candidates[new_index]
         cased = preserve_capitalization(session.original_word, candidate)
         new_token = (
-            f"{session.detected_token.leading_whitespace}"
             f"{session.detected_token.leading_punctuation}"
             f"{cased}"
             f"{session.detected_token.trailing_punctuation}"
@@ -275,7 +277,7 @@ class CorrectionManager:
         chars_to_delete: int = 0,
         chars_after_cursor: int = 0,
     ) -> None:
-        """Safely executes text replacement while suppressing global keyboard hooks."""
+        """Safely executes text replacement with proper pacing to prevent character collisions."""
         self.keyboard_manager.suppress_hooks = True
         try:
             if method == "fallback":
@@ -287,13 +289,16 @@ class CorrectionManager:
                 if chars_after_cursor > 0:
                     for _ in range(chars_after_cursor):
                         self.text_handler.keyboard_controller.tap(Key.right)
-                        time.sleep(0.003)
+                        time.sleep(0.008)
 
-                # Delete old token
+                # Delete old token with reliable keystroke timing
                 num_deletions = chars_to_delete if chars_to_delete > 0 else len(old_token)
                 for _ in range(num_deletions):
                     self.text_handler.keyboard_controller.tap(Key.backspace)
-                    time.sleep(0.003)
+                    time.sleep(0.012)
+
+                # Brief settle delay so the target window message loop updates the caret
+                time.sleep(0.035)
 
                 self.text_handler.type_string(new_token)
         finally:

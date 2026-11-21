@@ -351,8 +351,10 @@ class TextHandler:
             return False
 
     def type_string(self, text: str) -> None:
-        """Types a string into the currently focused window."""
-        self.keyboard_controller.type(text)
+        """Types a string into the currently focused window with stable pacing."""
+        for char in text:
+            self.keyboard_controller.tap(char)
+            time.sleep(0.004)
 
 
 def preserve_capitalization(original: str, candidate: str) -> str:
