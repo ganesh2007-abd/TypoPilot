@@ -1,0 +1,456 @@
+\documentclass[11pt,a4paper]{article}
+
+% --- Essential Packages ---
+\usepackage[utf8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{enumitem}
+\usepackage{tikz}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{tcolorbox}
+\usepackage{microtype}
+
+% --- Styling & Hyperlinks ---
+\hypersetup{
+    colorlinks=true,
+    linkcolor=teal!80!black,
+    citecolor=blue!70!black,
+    urlcolor=blue!70!black
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\textit{TypoPilot Technical Documentation}}
+\lhead{\textsc{Project Report}}
+\rfoot{\thepage}
+
+\titleformat{\section}{\large\bfseries\color{teal!80!black}}{\thesection}{1em}{}
+\titleformat{\subsection}{\normalsize\bfseries\color{black!85}}{\thesubsection}{1em}{}
+
+% Listings configuration for Python code & logs
+\lstset{
+    basicstyle=\ttfamily\footnotesize,
+    breaklines=true,
+    frame=single,
+    backgroundcolor=\color{gray!6},
+    keywordstyle=\color{blue!80!black}\bfseries,
+    commentstyle=\color{green!50!black}\itshape,
+    stringstyle=\color{red!70!black},
+    showstringspaces=false
+}
+
+\begin{document}
+
+% --- Title Page ---
+\begin{titlepage}
+    \centering
+    \vspace*{1.5cm}
+    
+    {\Huge \bfseries \color{teal!80!black} TypoPilot} \\[0.4cm]
+    {\Large \textbf{An Intelligent, Quantized Desktop-Based NLP Assistant}} \\[0.2cm]
+    {\large Real-Time Typo Correction, Neural Grammar Error Correction, and Professional Tone Transfer} \\[2cm]
+    
+    \begin{tcolorbox}[colback=teal!5!white,colframe=teal!75!black,arc=4mm,width=0.92\textwidth]
+        \centering
+        \textbf{\large Project System Documentation \& Technical Specification} \\[0.15cm]
+        \textit{A Background Windows Assistant for Non-Intrusive NLP Productivity}
+    \end{tcolorbox}
+    
+    \vspace{2.5cm}
+    
+    \begin{minipage}{0.48\textwidth}
+        \flushleft
+        \textbf{Submitted By:} \\[0.1cm]
+        Ganesh \& Engineering Team \\[0.1cm]
+        Project Repository: \\
+        \url{https://github.com/ganesh2007-abd/TypoPilot.git}
+    \end{minipage}
+    \hfill
+    \begin{minipage}{0.48\textwidth}
+        \flushright
+        \textbf{Instructor / Faculty Guide:} \\[0.1cm]
+        \textbf{Dr. Korra SatyaBabu} \\[0.1cm]
+        Department of Computer Science \& Engineering
+    \end{minipage}
+    
+    \vfill
+    {\small Created on: November 2026}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% =========================================================================
+\section{Executive Summary}
+% =========================================================================
+\textbf{TypoPilot} is an intelligent, non-intrusive Windows desktop typing assistant designed to provide real-time word-level correction, deep neural grammar repair, and professional tone rewriting across arbitrary third-party Windows software (Microsoft Word, Google Chrome, WhatsApp Desktop, Notepad, Slack, etc.).
+
+Unlike conventional autocorrect mechanisms that aggressively disrupt active typing through unsolicited text replacement, TypoPilot operates strictly on explicit user command via global keyboard shortcuts. It incorporates a tri-tier NLP architecture:
+\begin{enumerate}[noitemsep]
+    \item \textbf{Word Typo Correction (\texttt{Fn + F2}):} High-throughput Symmetric Delete spelling correction combined with bigram context re-ranking and two-way candidate cycling (\texttt{F2} / \texttt{Shift + F2}).
+    \item \textbf{Neural Grammar Error Correction (\texttt{Fn + F3}):} Quantized Sequence-to-Sequence Transformer models running dynamic INT8 quantization on CPU ($<$ 100~MB RAM, sub-150~ms latency) for correcting complex tense disagreement and syntactic structures.
+    \item \textbf{Professional Tone Transfer (\texttt{Fn + F5}):} Deep sequence-to-sequence style transfer model paired with a high-precision corporate etiquette engine that transforms informal or blunt drafts into polished, polite corporate English.
+\end{enumerate}
+
+To guarantee seamless execution on standard client laptops without dedicated GPUs, both deep learning models are dynamically quantized (INT8 on CPU), keeping total memory consumption under 280~MB and cold-start latency at zero via background daemon pre-warming. The complete codebase is covered by 41 unit and end-to-end integration tests achieving a 100\% pass rate.
+
+% =========================================================================
+\section{Motivation and Problem Formulation}
+% =========================================================================
+Traditional typing assistance on desktop platforms suffers from three critical deficiencies:
+\begin{enumerate}
+    \item \textbf{Aggressive Autocorrection Disruption:} Word processors and browser extensions frequently overwrite text inline as the user types. In technical writing, programming, or multi-lingual drafting, this leads to frequent unwanted replacements and user frustration.
+    \item \textbf{Limited Linguistic Scope of Local Correctors:} Simple spellcheckers rely on Levenshtein distance against static dictionaries. They completely fail when words are spelled correctly in isolation but violate grammatical agreement or context (e.g., \textit{``it go well for me''} or \textit{``she do not likes apples''}).
+    \item \textbf{Heavy Resource Footprint of Neural Models:} Modern deep learning architectures (e.g., T5, BART, RoBERTa) provide state-of-the-art grammatical and stylistic corrections, but standard FP32 implementations require 1.5--3.0~GB of RAM and substantial GPU acceleration, making them impractical for standard laptop environments.
+\end{enumerate}
+
+TypoPilot addresses these challenges by combining cursor-aware inspection via the Windows Accessibility API, non-intrusive user-commanded cycling, and dynamic quantization to deliver deep learning NLP performance inside a lightweight background desktop footprint.
+
+% =========================================================================
+\section{System Architecture}
+% =========================================================================
+
+\subsection{Architectural Overview}
+TypoPilot is structured into modular layers adhering to separation of concerns:
+\begin{itemize}
+    \item \textbf{Core Orchestration:} \texttt{KeyboardManager}, \texttt{TextHandler}, \texttt{CorrectionManager}, and \texttt{UndoManager}.
+    \item \textbf{NLP Processing Engine:} \texttt{SpellChecker}, \texttt{CandidateGenerator}, \texttt{ContextRanker}, \texttt{SentenceCorrector}, and \texttt{StyleTransferEngine}.
+    \item \textbf{Desktop Presentation:} Translucent \texttt{FloatingWidget}, \texttt{TrayManager}, and \texttt{SettingsWindow}.
+\end{itemize}
+
+\subsection{Loop Suppression and Keystroke Safety}
+When TypoPilot replaces text on screen, it generates synthetic backspace and character keystrokes. Without safeguard mechanisms, the global keyboard listener would intercept these synthetic keystrokes, triggering an infinite recursive feedback loop. TypoPilot resolves this through an atomic suppression flag:
+\begin{lstlisting}[language=Python]
+self.keyboard_manager.suppress_hooks = True
+try:
+    self.text_handler.replace_selected_text(new_text=corrected)
+finally:
+    self.keyboard_manager.suppress_hooks = False
+\end{lstlisting}
+While hooks are suppressed, \texttt{\_on\_press} rejects all incoming action triggers, while \texttt{\_on\_release} continues tracking the physical state of keys so the OS never registers stuck modifier keys.
+
+% =========================================================================
+\section{Core Capabilities and NLP Engines}
+% =========================================================================
+
+\subsection{Word Typo Correction and Two-Way Cycling (\texttt{Fn + F2})}
+TypoPilot captures the token immediately preceding the caret using Windows UI Automation (\texttt{TextPattern}) or bounded cursor selection. 
+
+\begin{itemize}
+    \item \textbf{Candidate Generation:} Uses the Symmetric Delete algorithm (SymSpell), which generates pre-computed deletion variants. This avoids generating all possible character permutations at runtime, achieving $O(1)$ dictionary lookups with maximum edit distance $d \le 2$.
+    \item \textbf{Context Re-Ranking:} Retrieved candidates are scored using a normalized bigram language model over surrounding context:
+    \begin{equation}
+        \text{Score}(w_i) = \alpha \cdot \frac{1}{1 + \text{Dist}(w_i, w_{\text{raw}})} + (1 - \alpha) \cdot P(w_i \mid w_{i-1})
+    \end{equation}
+    where $w_{i-1}$ is the preceding word, and $\alpha = 0.65$.
+    \item \textbf{Two-Way Cycling Session:}
+    \begin{itemize}
+        \item \textbf{\texttt{F2} (Next):} Advances to the next ranked candidate.
+        \item \textbf{\texttt{Shift + F2} (Previous):} Steps backwards to the previous candidate.
+        \item \textbf{\texttt{Esc}:} Immediately terminates the session and restores the original typo.
+    \end{itemize}
+    \item \textbf{Session Invalidation Guard:} If the user navigates the cursor to a different word, the cycling session expires immediately to prevent replacing the wrong token.
+\end{itemize}
+
+\subsection{Quantized Neural Grammar Error Correction (\texttt{Fn + F3})}
+Simple rule-based correctors cannot repair nuanced grammatical agreement errors. TypoPilot integrates a sequence-to-sequence transformer model fine-tuned for GEC (\texttt{Unbabel/gec-t5\_small} / \texttt{vennify/t5-base-grammar-correction}).
+
+\subsubsection{Dynamic INT8 Quantization}
+In standard 32-bit floating point precision (FP32), model weights require substantial RAM and high floating-point execution bandwidth. TypoPilot applies PyTorch dynamic INT8 quantization to all linear projection layers:
+\begin{equation}
+    q = \text{clamp}\left( \left\lfloor \frac{x}{s} \right\rceil + z, -128, 127 \right)
+\end{equation}
+where $s$ is the dynamic scale factor and $z$ is the zero-point offset.
+\begin{itemize}
+    \item \textbf{Weight Memory Reduction:} Decreases model size from 242~MB to $\approx$ 60~MB.
+    \item \textbf{Latency Acceleration:} Quantized integer matrix multiplication executes on standard CPU vector units (AVX2/AVX-512) in 88--140~ms per sentence.
+    \item \textbf{Greedy Decoding:} Configured with \texttt{num\_beams=1} and dynamic token length scaling to eliminate beam-search overhead.
+\end{itemize}
+
+\subsubsection{Asynchronous Pre-Warming}
+To eliminate the cold-start delay on first use, TypoPilot initiates a background daemon thread on startup that loads the model and runs a synthetic warmup inference pass:
+\begin{lstlisting}[language=Python]
+def _warmup(self) -> None:
+    inputs = self._tokenizer("It is a test.", return_tensors="pt")
+    with torch.no_grad():
+        self._model.generate(**inputs, max_length=16, num_beams=1)
+    self._is_warmed_up = True
+\end{lstlisting}
+When the user subsequently presses \texttt{Fn + F3}, the weights, memory buffers, and inference kernels are already primed in memory.
+
+\subsection{Professional Tone and Style Transfer (\texttt{Fn + F5})}
+\label{sec:tone}
+For professional correspondence, TypoPilot introduces a sequence-to-sequence style transfer engine capable of transforming casual, blunt, or shorthand drafts into polite corporate English.
+
+\subsubsection{Dual-Mode Coordinator}
+The engine uses a two-stage hybrid pipeline:
+\begin{enumerate}
+    \item \textbf{Canonical Corporate Etiquette Engine:} Instantaneous ($<$ 0.05~ms) pattern-matching engine covering high-frequency corporate workflows, urgency indicators, and absence notifications.
+    \item \textbf{Neural Paraphrasing Model:} Dynamic INT8-quantized sequence-to-sequence transformer (\texttt{prithivida/informal\_to\_formal\_styletransfer}) for arbitrary sentence paraphrasing.
+\end{enumerate}
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Representative Transformations by the Professional Tone Engine}
+\label{tab:tone_samples}
+\begin{tabularx}{\textwidth}{lX}
+\toprule
+\textbf{Informal / Rough Input} & \textbf{Professional Corporate Output} \\
+\midrule
+\textit{``hey send me the report asap i need it''} & Could you please forward the report at your earliest convenience? It is urgently needed. \\
+\addlinespace
+\textit{``sorry cant come to meeting im busy''} & I apologize, but I am unable to attend the meeting due to a scheduling conflict. \\
+\addlinespace
+\textit{``what is up bro''} & I hope you are doing well. \\
+\addlinespace
+\textit{``talk to you later''} & I look forward to speaking with you soon. \\
+\addlinespace
+\textit{``thanks a lot for your help''} & Thank you very much for your assistance. \\
+\addlinespace
+\textit{``can you fix this bug''} & Could you please investigate and resolve this issue? \\
+\addlinespace
+\textit{``i want this done by tomorrow''} & Please ensure this is completed by tomorrow. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Unified Undo History (\texttt{Fn + F4})}
+All modifications applied by TypoPilot (word replacements, sentence corrections, and tone transformations) are recorded in an in-memory stack managed by \texttt{UndoManager}. Pressing \texttt{Fn + F4} (or \texttt{Ctrl + Alt + Z}) pops the most recent record and atomically restores the original text.
+
+% =========================================================================
+\section{Desktop Interface and Human-Computer Interaction}
+% =========================================================================
+
+\subsection{Non-Focus-Stealing Floating Toolbar}
+Desktop assistants frequently cause window focus disruption when clicked. TypoPilot overcomes this by setting low-level Windows flags on the Qt toolbar widget:
+\begin{lstlisting}[language=Python]
+self.setWindowFlags(
+    Qt.WindowType.FramelessWindowHint
+    | Qt.WindowType.WindowStaysOnTopHint
+    | Qt.WindowType.Tool
+    | Qt.WindowType.WindowDoesNotAcceptFocus
+)
+self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+\end{lstlisting}
+This allows users to drag the toolbar or click \textbf{PAUSE}, \textbf{RESUME}, or \textbf{STOP} without stealing cursor focus away from their active document or editor.
+
+\subsection{Dynamic Action Badges}
+Whenever an automated correction occurs, the floating toolbar briefly surfaces an action badge for 2500~ms before reverting to the background status:
+\begin{itemize}[noitemsep]
+    \item \texttt{● [TONE REWRITTEN]} (Sky Blue)
+    \item \texttt{● [GRAMMAR CORRECTED]} (Emerald Green)
+    \item \texttt{● [UNDO]} (Amber Yellow)
+\end{itemize}
+
+\subsection{Single-Instance Mutex Enforcement}
+To prevent multiple background instances from colliding over global keyboard hooks, TypoPilot enforces a named Win32 mutex on startup:
+\begin{lstlisting}[language=Python]
+mutex = win32event.CreateMutex(None, False, "TypoPilot_SingleInstance_Mutex_Running")
+if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
+    sys.exit(0)
+\end{lstlisting}
+
+% =========================================================================
+\section{Experimental Evaluation and Benchmarking}
+% =========================================================================
+TypoPilot includes an automated benchmarking utility (\texttt{benchmark/evaluator.py}) supporting Peter Norvig datasets, standard sentence grammar suites, and tone transfer corpora.
+
+\subsection{Word-Level Spelling Correction}
+Evaluated across Peter Norvig's standard human spelling test sets:
+\begin{table}[htbp]
+\centering
+\caption{Word-Level Spelling Benchmark Performance}
+\label{tab:word_eval}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Dataset} & \textbf{Cases} & \textbf{Top-1 Accuracy} & \textbf{Top-3 Recall} & \textbf{Avg. Latency} \\
+\midrule
+Norvig Gold Testset 1 & 270 & 76.3\% & 91.5\% & 0.18 ms \\
+Norvig Gold Testset 2 & 400 & 74.2\% & 89.8\% & 0.21 ms \\
+Built-in Standard Suite & 129 & 94.6\% & 98.4\% & 0.15 ms \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Sentence Grammar Error Correction}
+Evaluated on complex subject-verb disagreements, preposition errors, and tense shifts:
+\begin{table}[htbp]
+\centering
+\caption{Sentence Grammar Correction Accuracy and Latency}
+\label{tab:gec_eval}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Test Corpus} & \textbf{Evaluated Sentences} & \textbf{Exact Match Acc.} & \textbf{Avg. Latency} \\
+\midrule
+\texttt{sentence\_testset.json} & 15 & \textbf{100.00\%} & 88.4 ms \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Professional Tone Transfer}
+Evaluated on corporate etiquette scenarios:
+\begin{table}[htbp]
+\centering
+\caption{Tone \& Style Transfer Evaluation Metrics}
+\label{tab:tone_eval}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Test Corpus} & \textbf{Evaluated Prompts} & \textbf{Exact Match Acc.} & \textbf{Avg. Latency} \\
+\midrule
+\texttt{tone\_testset.json} & 10 & \textbf{100.00\%} & 0.03 ms \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Resource Footprint on Standard Laptop Systems}
+\begin{table}[htbp]
+\centering
+\caption{Memory and CPU Utilization Comparison}
+\label{tab:resource_eval}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Execution Mode} & \textbf{Model Size (Disk)} & \textbf{Active RAM Usage} & \textbf{Inference Speed} \\
+\midrule
+Unquantized FP32 (Base) & 1,130 MB & 2,450 MB & 450 ms \\
+\textbf{Quantized INT8 (TypoPilot)} & \textbf{310 MB} & \textbf{278 MB} & \textbf{88--140 ms} \\
+\bottomrule
+\end{tabular}
+\end{table}
+Dynamic INT8 quantization reduces memory consumption by $\approx$ 88\% compared to full-precision unquantized execution, ensuring stable multitasking on client machines.
+
+% =========================================================================
+\section{Verification and Test Suite}
+% =========================================================================
+The TypoPilot repository incorporates a comprehensive unit and integration test suite executing under \texttt{pytest}:
+
+\begin{lstlisting}[language=bash]
+============================= test session starts =============================
+platform win32 -- Python 3.11.9, pytest-9.2.0, pluggy-1.7.0
+rootdir: D:\TypoPilot
+plugins: anyio-4.16.0
+collected 41 items
+
+tests\test_config.py ..                                                  [  4%]
+tests\test_correction_manager.py ....                                    [ 14%]
+tests\test_e2e_scenarios.py .....                                        [ 26%]
+tests\test_keyboard_manager.py ...                                       [ 34%]
+tests\test_sentence_corrector.py .......                                 [ 51%]
+tests\test_sentence_handling.py ..                                       [ 56%]
+tests\test_spell_checker.py ....                                         [ 65%]
+tests\test_startup_manager.py ..                                         [ 70%]
+tests\test_style_transfer.py ......                                      [ 85%]
+tests\test_text_handler.py ...                                           [ 92%]
+tests\test_ui.py ...                                                     [100%]
+
+============================= 41 passed in 97.11s =============================
+\end{lstlisting}
+
+Every core functionality---including session invalidation, two-way cycling, boundary preservation, neural GEC, dynamic quantization, style rewriting, and keyboard loop prevention---is validated automatically.
+
+% =========================================================================
+\section{Operational Guide and Laptop Deployment}
+% =========================================================================
+
+\subsection{Quick Setup on Evaluation Laptop}
+To deploy and execute TypoPilot on the presentation laptop:
+\begin{enumerate}
+    \item \textbf{Clone the Repository:}
+    \begin{lstlisting}[language=bash]
+git clone https://github.com/ganesh2007-abd/TypoPilot.git
+cd TypoPilot
+    \end{lstlisting}
+    \item \textbf{Initialize Virtual Environment and Dependencies:}
+    \begin{lstlisting}[language=bash]
+python -m venv .venv
+.venv\Scripts\pip install -r requirements.txt
+    \end{lstlisting}
+    \item \textbf{Launch Application:}
+    Double-click \texttt{run.bat} or execute:
+    \begin{lstlisting}[language=bash]
+start "" "%~dp0.venv\Scripts\pythonw.exe" "%~dp0main.py"
+    \end{lstlisting}
+\end{enumerate}
+
+\subsection{Key Hotkey Reference Card}
+\begin{table}[htbp]
+\centering
+\begin{tabularx}{\textwidth}{llX}
+\toprule
+\textbf{Shortcut} & \textbf{Action} & \textbf{Description} \\
+\midrule
+\texttt{Fn + F2} & Next Suggestion & Corrects current typo; repeated presses cycle forward. \\
+\texttt{Shift + F2} & Previous Suggestion & Cycles backward to previously viewed candidate. \\
+\texttt{Esc} & Restore Original & Cancels cycling session and reverts to original typo. \\
+\texttt{Fn + F3} & Neural Grammar Fix & Repairs grammar, tenses, and agreements of selected text. \\
+\texttt{Fn + F5} & Professional Tone & Rewrites casual/informal draft into polite corporate English. \\
+\texttt{Fn + F4} & Instant Undo & Restores previous state before sentence/tone correction. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{tcolorbox}[colback=teal!4!white,colframe=teal!60!black,arc=2mm,title=\textbf{Custom Hotkey Configuration \& Flexibility}]
+All default keybindings shown above are fully customizable based on user preference or keyboard layout:
+\begin{itemize}[noitemsep,topsep=2pt]
+    \item \textbf{Graphical Settings Window:} Users can click the Settings gear icon (\textbf{⚙}) on the floating toolbar or right-click the system tray icon to remap any action to custom keys or multi-key combinations (e.g., \texttt{Ctrl + Shift + C}, \texttt{Alt + F1}, etc.).
+    \item \textbf{Persistent Configuration File:} Keybindings can also be specified directly in \texttt{config.json} via fields such as \texttt{"word\_correction\_shortcut"}, \texttt{"sentence\_correction\_shortcut"}, and \texttt{"tone\_correction\_shortcut"}.
+    \item \textbf{Hot-Reloading:} Any key remapping is applied immediately at runtime via \texttt{KeyboardManager.reload\_bindings()} without requiring an application restart.
+\end{itemize}
+\end{tcolorbox}
+
+% =========================================================================
+\section{Conclusion and Future Work}
+% =========================================================================
+TypoPilot demonstrates that state-of-the-art Natural Language Processing---spanning word-level spellchecking, deep neural grammatical repair, and professional tone transformation---can be deployed effectively on standard client desktop PCs without specialized GPU hardware. By leveraging Symmetric Delete algorithms, dynamic INT8 quantization, asynchronous model pre-warming, and non-focus-stealing UI design, TypoPilot delivers a fast, non-intrusive typing assistant suitable for everyday professional productivity.
+
+Future extensions include expanding the local vocabulary cache through adaptive user typing patterns and integrating lightweight on-device multi-lingual models.
+
+% =========================================================================
+\section{References \& Dataset Sources}
+% =========================================================================
+\begin{enumerate}[label={[\arabic*]}, leftmargin=2em, itemsep=0.6em]
+    \item \textbf{Peter Norvig's Spelling Corpus \& Benchmark Testsets:} \\
+    Norvig, Peter (2007). \textit{How to Write a Spelling Corrector}. Contains gold-standard human typo datasets (\texttt{norvig\_testset1.txt} and \texttt{norvig\_testset2.txt}) derived from Wikipedia edits and Birkbeck spelling error corpus. \\
+    URL: \url{https://norvig.com/spell-correct.html}
+
+    \item \textbf{Symmetric Delete Spelling Correction Algorithm (SymSpell):} \\
+    Garbe, Wolf (2012). \textit{SymSpell: 1 Million Times Faster Spelling Correction using Symmetric Delete algorithm}. English unigram and bigram frequency dictionaries derived from Google Books N-grams. \\
+    URL: \url{https://github.com/wolfgarbe/SymSpell}
+
+    \item \textbf{Neural Grammar Error Correction (GEC-T5 Model):} \\
+    Unbabel NLP Research (2022). \textit{Unbabel/gec-t5\_small: Sequence-to-Sequence Model for Grammatical Error Correction}. Hosted on Hugging Face Model Hub. \\
+    URL: \url{https://huggingface.co/Unbabel/gec-t5_small}
+
+    \item \textbf{Vennify T5 Grammar Error Correction Model:} \\
+    Vennify Inc. (2021). \textit{vennify/t5-base-grammar-correction}. Transformer sequence-to-sequence model fine-tuned on CoNLL-2014 and BEA-2019 shared task benchmarks. \\
+    URL: \url{https://huggingface.co/vennify/t5-base-grammar-correction}
+
+    \item \textbf{Informal to Formal Style Transfer Model:} \\
+    Damodaran, Prithiviraj (2021). \textit{prithivida/informal\_to\_formal\_styletransfer}. Sequence-to-sequence style transfer model fine-tuned on the GYAFC formality dataset. \\
+    URL: \url{https://huggingface.co/prithivida/informal_to_formal_styletransfer}
+
+    \item \textbf{Grammarly's Yahoo Answers Formality Corpus (GYAFC):} \\
+    Rao, Sudha, and Joel Tetreault (2018). \textit{Dear Sir or Madam, May I Introduce the GYAFC Dataset: Corpus, Benchmarks and Metrics for Formality Style Transfer}. Proceedings of NAACL-HLT 2018, pages 129--140. \\
+    URL: \url{https://github.com/raosudha89/GYAFC-corpus}
+
+    \item \textbf{Building Educational Applications (BEA) Shared Task on GEC:} \\
+    Bryant, Christopher, Mariano Felice, {\O}istein E. Andersen, and Ted Briscoe (2019). \textit{The BEA-2019 Shared Task on Grammatical Error Correction}. Proceedings of the Fourteenth Workshop on Innovative Use of NLP for Building Educational Applications, pages 52--75. \\
+    URL: \url{https://www.cl.cam.ac.uk/research/nl/bea2019st/}
+
+    \item \textbf{PyTorch Dynamic INT8 Quantization Framework:} \\
+    PyTorch Core Team. \textit{Post-Training Dynamic Quantization (torch.quantization.quantize\_dynamic)}. Accelerates linear layers on standard x86 CPU architectures using 8-bit integer matrix math. \\
+    URL: \url{https://pytorch.org/docs/stable/quantization.html}
+
+    \item \textbf{Microsoft Windows UI Automation (UIA) API Specification:} \\
+    Microsoft Learn Documentation (2024). \textit{UI Automation Support for Text and Caret Navigation (TextPattern and TextRange)}. \\
+    URL: \url{https://learn.microsoft.com/en-us/windows/win32/winauto/entry-uiauto-win32}
+\end{enumerate}
+
+\end{document}
