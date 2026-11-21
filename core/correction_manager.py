@@ -97,6 +97,9 @@ class CorrectionManager:
             # Guard: skip if the word is already correctly spelled
             if self.spell_checker.is_correct(detected.raw_word):
                 print(f"[TypoPilot] '{detected.raw_word}' is already correct. Skipping.")
+                # If word was selected in fallback mode, restore cursor position
+                if detected.method == "fallback":
+                    self.text_handler.keyboard_controller.tap(Key.right)
                 return
 
             # Query NLP suggestions with preceding context
@@ -107,23 +110,30 @@ class CorrectionManager:
             )
 
             if not suggestions:
+                if detected.method == "fallback":
+                    self.text_handler.keyboard_controller.tap(Key.right)
                 return
 
-            # Build the replacement token
+            # Build the clean replacement token
             cased = preserve_capitalization(detected.raw_word, suggestions[0])
-            replacement_token = (
+            first_clean_token = (
                 f"{detected.leading_punctuation}"
                 f"{cased}"
                 f"{detected.trailing_punctuation}"
+                f"{detected.trailing_whitespace}"
             )
+            # In fallback mode, the Windows selection captured leading_whitespace,
+            # so the replacement typed over the selection includes it to avoid eating spaces.
+            first_typed_token = f"{detected.leading_whitespace}{first_clean_token}"
 
             # Create new session
+            # Note: last_replaced_token stores the clean token so cycling only deletes the word!
             session = ActiveSession(
                 original_word=detected.raw_word,
                 detected_token=detected,
                 candidates=suggestions,
                 current_index=0,
-                last_replaced_token=replacement_token,
+                last_replaced_token=first_clean_token,
                 last_active_time=time.time(),
             )
             self._active_session = session
@@ -135,10 +145,10 @@ class CorrectionManager:
                 token=detected,
             )
 
-            # Perform replacement via clipboard-based select-and-paste
+            # Perform replacement in target application
             self._execute_replacement(
                 old_token=detected.full_token,
-                new_token=replacement_token,
+                new_token=first_typed_token if detected.method == "fallback" else first_clean_token,
                 method=detected.method,
                 chars_to_delete=detected.chars_to_delete,
                 chars_after_cursor=detected.chars_after_cursor,
@@ -175,6 +185,7 @@ class CorrectionManager:
                 f"{session.detected_token.leading_punctuation}"
                 f"{session.original_word}"
                 f"{session.detected_token.trailing_punctuation}"
+                f"{session.detected_token.trailing_whitespace}"
             )
 
             # Replace current candidate with original token
@@ -255,6 +266,7 @@ class CorrectionManager:
             f"{session.detected_token.leading_punctuation}"
             f"{cased}"
             f"{session.detected_token.trailing_punctuation}"
+            f"{session.detected_token.trailing_whitespace}"
         )
 
         old_token = session.last_replaced_token

@@ -1,20 +1,26 @@
 """TypoPilot - Intelligent Desktop-Based NLP Assistant.
 
-Main entry point for the background application and system tray.
+Main entry point for the background application, floating desktop toolbar, and system tray.
 """
 
 from __future__ import annotations
 
 import sys
-from PyQt6.QtWidgets import QApplication
+import win32api
+import win32event
+import winerror
+from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from config import TypoPilotConfig
 from core.correction_manager import CorrectionManager
 from core.keyboard_manager import KeyboardManager
 from nlp.sentence_corrector import SentenceCorrector
 from nlp.spell_checker import SpellChecker
+from ui.floating_widget import FloatingWidget
 from ui.settings_window import SettingsWindow
 from ui.tray_manager import TrayManager
+
+SINGLE_INSTANCE_MUTEX_NAME = "TypoPilot_SingleInstance_Mutex_Running"
 
 
 class TypoPilotApp:
@@ -36,6 +42,13 @@ class TypoPilotApp:
         # Start keyboard hook
         self.keyboard_manager.start()
 
+        # Initialize Floating Draggable Desktop Toolbar
+        self.floating_widget = FloatingWidget(self.config)
+        self.floating_widget.pause_toggled.connect(self._on_status_changed)
+        self.floating_widget.settings_clicked.connect(self.show_settings)
+        self.floating_widget.quit_clicked.connect(self._on_quit)
+        self.floating_widget.show()
+
         # Settings window reference (created on demand)
         self.settings_window: SettingsWindow | None = None
 
@@ -48,7 +61,7 @@ class TypoPilotApp:
         if self.config.tray_notifications:
             self.tray_manager.show_notification(
                 "TypoPilot Running",
-                f"TypoPilot is active in the background. Press {self.config.word_correction_shortcut} to correct words.",
+                f"TypoPilot is active! Use the floating widget at the bottom of your screen to pause or stop anytime.",
             )
 
     def show_settings(self) -> None:
@@ -65,6 +78,7 @@ class TypoPilotApp:
         """Called when settings are updated and saved."""
         self.config = updated_config
         self.tray_manager.update_icon()
+        self.floating_widget.update_status(self.config.enabled)
         self.keyboard_manager.reload_bindings()
         self.correction_manager.spell_checker = SpellChecker(updated_config)
         self.correction_manager.sentence_corrector = SentenceCorrector(
@@ -76,30 +90,47 @@ class TypoPilotApp:
             )
 
     def _on_status_changed(self, enabled: bool) -> None:
-        """Called when enabled state is toggled from tray menu."""
+        """Called when enabled state is toggled from tray menu or floating toolbar."""
+        self.config.enabled = enabled
+        self.config.save()
+        self.tray_manager.update_icon()
+        self.floating_widget.update_status(enabled)
         if self.settings_window and self.settings_window.isVisible():
             self.settings_window.enabled_cb.setChecked(enabled)
 
     def _on_quit(self) -> None:
         """Clean shutdown hook."""
         self.keyboard_manager.stop()
+        if hasattr(self, "floating_widget") and self.floating_widget:
+            self.floating_widget.close()
+        self.qapp.quit()
 
 
 def main() -> int:
-    """Main application execution function."""
+    """Main application execution function with Single-Instance Mutex protection."""
+    # Enforce Single-Instance: Multiple simultaneous instances cause keyboard hook chaos
+    mutex = win32event.CreateMutex(None, False, SINGLE_INSTANCE_MUTEX_NAME)
+    if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
+        print("[TypoPilot] An instance of TypoPilot is already running! Exiting duplicate.")
+        # If launched by double-clicking run.bat, notify the user
+        app = QApplication(sys.argv)
+        QMessageBox.information(
+            None,
+            "TypoPilot Already Running",
+            "TypoPilot is already running on your desktop!\n\n"
+            "Look for the floating widget at the bottom of your screen or the tray icon near your clock.\n"
+            "To restart it completely, run stop.bat first.",
+        )
+        return 0
+
     app = QApplication(sys.argv)
     app.setApplicationName("TypoPilot")
     app.setApplicationDisplayName("TypoPilot")
 
-    # Prevent app from terminating when windows are closed
+    # Prevent app from terminating when individual dialogs close
     app.setQuitOnLastWindowClosed(False)
 
     pilot_app = TypoPilotApp(app)
-
-    # If launched manually (or --show-settings is passed), display the settings/status window immediately
-    # so the user has visual confirmation that TypoPilot is running!
-    if "--silent" not in sys.argv:
-        pilot_app.show_settings()
 
     return app.exec()
 
