@@ -53,9 +53,19 @@ class E2ETextHandler(TextHandler):
         self.typed_replacements.append(text)
 
 
+class _DummyPressed:
+    def __enter__(self):
+        return self
+    def __exit__(self, *args):
+        pass
+
+
 class DummyKeyboardController:
     def tap(self, key):
         pass
+
+    def pressed(self, *keys):
+        return _DummyPressed()
 
 
 def test_cursor_moved_backwards_paragraph():

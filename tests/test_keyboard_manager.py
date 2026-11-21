@@ -39,35 +39,36 @@ def test_keyboard_manager_matching_and_priority():
     km.on_sentence_correction = lambda: triggered.append("sentence")
     km.on_cancel_restore = lambda: triggered.append("cancel")
 
+    import time
+
     # 1. Test next candidate (bare F2)
     km._on_press(Key.f2)
-    # wait brief moment for daemon thread
-    import time
     time.sleep(0.05)
     assert triggered == ["next"]
+    # Simulate callback finished by clearing _busy
+    km._busy = False
     km._on_release(Key.f2)
 
     # 2. Test previous candidate (Shift + F2)
     triggered.clear()
-    km._last_trigger_time = 0.0
     km._on_press(Key.shift)
     km._on_press(Key.f2)
     time.sleep(0.05)
     assert triggered == ["prev"]
+    km._busy = False
     km._on_release(Key.f2)
     km._on_release(Key.shift)
 
     # 3. Test cancel (Esc)
     triggered.clear()
-    km._last_trigger_time = 0.0
     km._on_press(Key.esc)
     time.sleep(0.05)
     assert triggered == ["cancel"]
+    km._busy = False
     km._on_release(Key.esc)
 
     # 4. Test suppression
     triggered.clear()
-    km._last_trigger_time = 0.0
     km.suppress_hooks = True
     km._on_press(Key.f2)
     time.sleep(0.05)
@@ -80,3 +81,21 @@ def test_keyboard_manager_matching_and_priority():
     km._on_press(Key.f2)
     time.sleep(0.05)
     assert triggered == []
+
+    # 6. Test _busy prevents duplicate triggers
+    cfg.enabled = True
+    triggered.clear()
+    km._busy = True
+    km._on_press(Key.f2)
+    time.sleep(0.05)
+    assert triggered == []  # Blocked because _busy is True
+    km._busy = False
+
+    # 7. Test _on_release works even during suppress (key tracking)
+    km._current_keys.clear()
+    km.suppress_hooks = True
+    km._on_press(Key.f2)      # ignored, not added to _current_keys
+    km._current_keys.add(Key.f2)  # simulate it being there
+    km._on_release(Key.f2)    # should still remove from _current_keys
+    assert Key.f2 not in km._current_keys  # Key properly cleaned up
+    km.suppress_hooks = False

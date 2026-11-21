@@ -75,7 +75,9 @@ class KeyboardManager:
         self._current_keys: Set[Key | KeyCode] = set()
         self._lock = threading.Lock()
 
-        # Flag to prevent handling keystrokes generated synthetically by TypoPilot
+        # Flag to prevent handling keystrokes generated synthetically by TypoPilot.
+        # When True, _on_press ignores triggers BUT _on_release still tracks
+        # key-state so we don't get stuck with phantom held keys.
         self.suppress_hooks = False
 
         # Callbacks
@@ -84,10 +86,9 @@ class KeyboardManager:
         self.on_sentence_correction: Callable[[], None] | None = None
         self.on_cancel_restore: Callable[[], None] | None = None
 
-        # Key state tracking to prevent repeated triggers on key-hold
-        self._active_triggered_action: str | None = None
-        self._last_trigger_time: float = 0.0
-        self._debounce_interval: float = 0.15  # seconds debounce to avoid typematic repeats
+        # Busy flag: set True while a correction is executing.
+        # Prevents a second callback from queueing if the first hasn't finished.
+        self._busy = False
 
         self._hotkey_bindings: Dict[str, Set[Key | KeyCode]] = {}
         self.reload_bindings()
@@ -124,7 +125,7 @@ class KeyboardManager:
             self._listener = None
         with self._lock:
             self._current_keys.clear()
-            self._active_triggered_action = None
+            self._busy = False
 
     def _matches_binding(self, binding_keys: Set[Key | KeyCode]) -> bool:
         """Checks if all keys in the target binding are currently held down."""
@@ -136,6 +137,8 @@ class KeyboardManager:
 
     def _on_press(self, raw_key: Key | KeyCode | None) -> None:
         """Internal callback when a key is physically pressed."""
+        # During suppress, we still track the key set (see _on_release)
+        # but never fire action callbacks.
         if self.suppress_hooks or not self.config.enabled:
             return
 
@@ -146,63 +149,51 @@ class KeyboardManager:
         with self._lock:
             self._current_keys.add(normalized)
 
-            now = time.time()
+            # If a correction is currently executing, ignore all hotkeys
+            if self._busy:
+                return
 
             # Check if any action matched (check more specific modifiers first)
+            matched_action: str | None = None
+            matched_callback: Callable[[], None] | None = None
+
             # Priority 1: Sentence correction (usually Ctrl+F2)
             if self._matches_binding(self._hotkey_bindings.get("sentence", set())):
-                if self._active_triggered_action != "sentence":
-                    if (now - self._last_trigger_time) < self._debounce_interval:
-                        return
-                    self._active_triggered_action = "sentence"
-                    self._last_trigger_time = now
-                    self._trigger_callback(self.on_sentence_correction)
-                return
-
+                matched_action = "sentence"
+                matched_callback = self.on_sentence_correction
             # Priority 2: Word correction previous (usually Shift+F2)
-            if self._matches_binding(self._hotkey_bindings.get("prev", set())):
-                if self._active_triggered_action != "prev":
-                    if (now - self._last_trigger_time) < self._debounce_interval:
-                        return
-                    self._active_triggered_action = "prev"
-                    self._last_trigger_time = now
-                    self._trigger_callback(self.on_word_correction_prev)
-                return
-
+            elif self._matches_binding(self._hotkey_bindings.get("prev", set())):
+                matched_action = "prev"
+                matched_callback = self.on_word_correction_prev
             # Priority 3: Word correction next / activate (usually F2)
-            if self._matches_binding(self._hotkey_bindings.get("next", set())):
-                if self._active_triggered_action != "next":
-                    if (now - self._last_trigger_time) < self._debounce_interval:
-                        return
-                    self._active_triggered_action = "next"
-                    self._last_trigger_time = now
-                    self._trigger_callback(self.on_word_correction_next)
-                return
-
+            elif self._matches_binding(self._hotkey_bindings.get("next", set())):
+                matched_action = "next"
+                matched_callback = self.on_word_correction_next
             # Priority 4: Cancel / Restore original (usually Esc)
-            if self._matches_binding(self._hotkey_bindings.get("cancel", set())):
-                if self._active_triggered_action != "cancel":
-                    if (now - self._last_trigger_time) < self._debounce_interval:
-                        return
-                    self._active_triggered_action = "cancel"
-                    self._last_trigger_time = now
-                    self._trigger_callback(self.on_cancel_restore)
-                return
+            elif self._matches_binding(self._hotkey_bindings.get("cancel", set())):
+                matched_action = "cancel"
+                matched_callback = self.on_cancel_restore
+
+            if matched_action is not None and matched_callback is not None:
+                self._busy = True
+                self._trigger_callback(matched_callback)
 
     def _on_release(self, raw_key: Key | KeyCode | None) -> None:
-        """Internal callback when a key is released."""
-        if self.suppress_hooks:
-            return
+        """Internal callback when a key is released.
 
+        ALWAYS updates key tracking state, even during suppress,
+        so we never get stuck with phantom held keys.
+        """
         normalized = normalize_key(raw_key)
         with self._lock:
-            if normalized in self._current_keys:
-                self._current_keys.discard(normalized)
-
-            # Always clear active triggered action on key release so next press responds
-            self._active_triggered_action = None
+            self._current_keys.discard(normalized)
 
     def _trigger_callback(self, callback: Callable[[], None] | None) -> None:
         """Executes the action callback in a separate thread so listener is never blocked."""
         if callback is not None:
-            threading.Thread(target=callback, daemon=True).start()
+            def _wrapper():
+                try:
+                    callback()
+                finally:
+                    self._busy = False
+            threading.Thread(target=_wrapper, daemon=True).start()

@@ -94,6 +94,11 @@ class CorrectionManager:
 
             print(f"[TypoPilot] Detected word at cursor: '{detected.raw_word}' (Method: {detected.method})")
 
+            # Guard: skip if the word is already correctly spelled
+            if self.spell_checker.is_correct(detected.raw_word):
+                print(f"[TypoPilot] '{detected.raw_word}' is already correct. Skipping.")
+                return
+
             # Query NLP suggestions with preceding context
             suggestions = self.spell_checker.get_suggestions(
                 word=detected.raw_word,
@@ -104,25 +109,21 @@ class CorrectionManager:
             if not suggestions:
                 return
 
-            # Calculate clean replacement token preserving punctuation and trailing spacing
+            # Build the replacement token
             cased = preserve_capitalization(detected.raw_word, suggestions[0])
-            first_clean_token = (
+            replacement_token = (
                 f"{detected.leading_punctuation}"
                 f"{cased}"
                 f"{detected.trailing_punctuation}"
-                f"{detected.trailing_whitespace}"
             )
-            first_typed_token = f"{detected.leading_whitespace}{first_clean_token}"
 
             # Create new session
-            # Note: last_replaced_token stores the clean token (excluding leading whitespace)
-            # so subsequent cycling operations only delete the clean token!
             session = ActiveSession(
                 original_word=detected.raw_word,
                 detected_token=detected,
                 candidates=suggestions,
                 current_index=0,
-                last_replaced_token=first_clean_token,
+                last_replaced_token=replacement_token,
                 last_active_time=time.time(),
             )
             self._active_session = session
@@ -134,10 +135,10 @@ class CorrectionManager:
                 token=detected,
             )
 
-            # Perform replacement in target application with suppressed hooks
+            # Perform replacement via clipboard-based select-and-paste
             self._execute_replacement(
                 old_token=detected.full_token,
-                new_token=first_typed_token,
+                new_token=replacement_token,
                 method=detected.method,
                 chars_to_delete=detected.chars_to_delete,
                 chars_after_cursor=detected.chars_after_cursor,
@@ -169,19 +170,18 @@ class CorrectionManager:
             session = self._active_session
             assert session is not None
 
-            # Original token restoration preserving clean token without deleting leading space
+            # Build original token to restore
             orig_token = (
                 f"{session.detected_token.leading_punctuation}"
                 f"{session.original_word}"
                 f"{session.detected_token.trailing_punctuation}"
-                f"{session.detected_token.trailing_whitespace}"
             )
 
             # Replace current candidate with original token
             self._execute_replacement(
                 old_token=session.last_replaced_token,
                 new_token=orig_token,
-                method="uia",  # After cycling, cursor is positioned at end of replaced word
+                method="uia",
             )
 
             # Reset active session
@@ -246,6 +246,7 @@ class CorrectionManager:
             else:
                 result.append(token)
         return "".join(result)
+
     def _apply_candidate(self, session: ActiveSession, new_index: int) -> None:
         """Replaces the currently displayed candidate with the candidate at new_index."""
         candidate = session.candidates[new_index]
@@ -254,7 +255,6 @@ class CorrectionManager:
             f"{session.detected_token.leading_punctuation}"
             f"{cased}"
             f"{session.detected_token.trailing_punctuation}"
-            f"{session.detected_token.trailing_whitespace}"
         )
 
         old_token = session.last_replaced_token
@@ -266,7 +266,7 @@ class CorrectionManager:
         self._execute_replacement(
             old_token=old_token,
             new_token=new_token,
-            method="uia",  # Subsequent cycles use backspace from caret
+            method="uia",  # Subsequent cycles: cursor is at end of last replacement
         )
 
     def _execute_replacement(
@@ -277,7 +277,7 @@ class CorrectionManager:
         chars_to_delete: int = 0,
         chars_after_cursor: int = 0,
     ) -> None:
-        """Safely executes text replacement with proper pacing to prevent character collisions."""
+        """Safely executes text replacement with proper timing to prevent character collisions."""
         self.keyboard_manager.suppress_hooks = True
         try:
             if method == "fallback":
@@ -289,7 +289,7 @@ class CorrectionManager:
                 if chars_after_cursor > 0:
                     for _ in range(chars_after_cursor):
                         self.text_handler.keyboard_controller.tap(Key.right)
-                        time.sleep(0.008)
+                        time.sleep(0.01)
 
                 # Delete old token with reliable keystroke timing
                 num_deletions = chars_to_delete if chars_to_delete > 0 else len(old_token)
