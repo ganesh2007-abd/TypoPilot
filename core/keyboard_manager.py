@@ -123,9 +123,14 @@ class KeyboardManager:
             except Exception:
                 pass
             self._listener = None
+        self.reset_state()
+
+    def reset_state(self) -> None:
+        """Resets key tracking and busy state completely."""
         with self._lock:
             self._current_keys.clear()
             self._busy = False
+            self._last_trigger_time = 0.0
 
     def _matches_binding(self, binding_keys: Set[Key | KeyCode]) -> bool:
         """Checks if all keys in the target binding are currently held down."""

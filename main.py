@@ -93,6 +93,8 @@ class TypoPilotApp:
         """Called when enabled state is toggled from tray menu or floating toolbar."""
         self.config.enabled = enabled
         self.config.save()
+        self.keyboard_manager.config.enabled = enabled
+        self.keyboard_manager.reset_state()
         self.tray_manager.update_icon()
         self.floating_widget.update_status(enabled)
         if self.settings_window and self.settings_window.isVisible():

@@ -266,14 +266,23 @@ class TextHandler:
         except Exception:
             pass
 
+        sentinel = f"__TYPOPILOT_SENTINEL_{time.time()}__"
         try:
+            # Set sentinel so we know if Ctrl+C actually copied any new highlighted text
+            try:
+                pyperclip.copy(sentinel)
+                time.sleep(0.015)
+            except Exception:
+                pass
+
             # Tap Ctrl+C
             with self.keyboard_controller.pressed(Key.ctrl):
                 self.keyboard_controller.tap("c")
             time.sleep(0.04)
 
             selected_text = pyperclip.paste()
-            if selected_text and selected_text.strip():
+            # Only accept text if Ctrl+C actually copied something new (not sentinel or empty)
+            if selected_text and selected_text != sentinel and selected_text.strip():
                 return selected_text, clipboard_backup
         except Exception:
             pass

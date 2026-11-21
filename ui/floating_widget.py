@@ -32,12 +32,14 @@ class FloatingWidget(QWidget):
         self.config = config
         self._drag_pos = QPoint()
 
-        # Window flags: Frameless, Always on Top, Tool window (doesn't steal taskbar clutter)
+        # Window flags: Frameless, Always on Top, Tool window, Does NOT steal focus when clicked!
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowStaysOnTopHint
             | Qt.WindowType.Tool
+            | Qt.WindowType.WindowDoesNotAcceptFocus
         )
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
 
         self._init_ui()
@@ -70,6 +72,7 @@ class FloatingWidget(QWidget):
 
         # 3. Emergency PAUSE / RESUME Toggle Button
         self.toggle_btn = QPushButton("PAUSE")
+        self.toggle_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.toggle_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.toggle_btn.setToolTip("Click to instantly pause or resume TypoPilot shortcuts")
         self.toggle_btn.clicked.connect(self._on_toggle_clicked)
@@ -77,6 +80,7 @@ class FloatingWidget(QWidget):
 
         # 4. Settings Button
         self.settings_btn = QPushButton("⚙")
+        self.settings_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.settings_btn.setFixedSize(28, 28)
         self.settings_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.settings_btn.setToolTip("Open TypoPilot Settings")
@@ -97,6 +101,7 @@ class FloatingWidget(QWidget):
 
         # 5. Emergency STOP / QUIT Button
         self.quit_btn = QPushButton("✕")
+        self.quit_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.quit_btn.setFixedSize(28, 28)
         self.quit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.quit_btn.setToolTip("Stop TypoPilot completely")
