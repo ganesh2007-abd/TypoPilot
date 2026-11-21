@@ -10,7 +10,7 @@ import re
 import threading
 import time
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Callable, List, Optional
 from pynput.keyboard import Key
 
 from config import TypoPilotConfig
@@ -19,6 +19,7 @@ from core.text_handler import DetectedWord, TextHandler, preserve_capitalization
 from core.undo_manager import UndoManager
 from nlp.sentence_corrector import SentenceCorrector
 from nlp.spell_checker import SpellChecker
+from nlp.style_transfer import StyleTransferEngine
 
 
 @dataclass
@@ -42,6 +43,8 @@ class CorrectionManager:
         text_handler: Optional[TextHandler] = None,
         spell_checker: Optional[SpellChecker] = None,
         undo_manager: Optional[UndoManager] = None,
+        sentence_corrector: Optional[SentenceCorrector] = None,
+        style_transfer: Optional[StyleTransferEngine] = None,
     ):
         self.config = config
         self.keyboard_manager = keyboard_manager
@@ -53,14 +56,21 @@ class CorrectionManager:
         self._lock = threading.Lock()
         self.session_timeout = 8.0  # seconds before cycling session expires
 
+        # Status notifier callback (e.g. for floating desktop toolbar)
+        self.status_notifier: Optional[Callable[[str], None]] = None
+
         # Wire callbacks to keyboard manager
         self.keyboard_manager.on_word_correction_next = self.handle_next_prediction
         self.keyboard_manager.on_word_correction_prev = self.handle_prev_prediction
         self.keyboard_manager.on_cancel_restore = self.handle_cancel_restore
         self.keyboard_manager.on_sentence_correction = self.handle_sentence_correction
+        self.keyboard_manager.on_tone_rewrite = self.rewrite_tone
+        self.keyboard_manager.on_undo = self.handle_undo
 
         # Sentence corrector engine (Dual-mode: local CPU rules + GPU neural adapter)
-        self.sentence_corrector = SentenceCorrector(self.config, self.spell_checker)
+        self.sentence_corrector = sentence_corrector or SentenceCorrector(self.config, self.spell_checker)
+        # Tone & style transfer engine (Dual-mode: corporate rules + neural INT8 adapter)
+        self.style_transfer = style_transfer or StyleTransferEngine(self.config)
 
     def _is_session_valid(self, detected: Optional[DetectedWord] = None) -> bool:
         """Checks if current session is active, not timed out, and matches the word at cursor."""
@@ -261,6 +271,108 @@ class CorrectionManager:
                 )
             finally:
                 self.keyboard_manager.suppress_hooks = False
+
+            # 5. Notify floating toolbar or UI
+            if self.status_notifier:
+                try:
+                    self.status_notifier("GRAMMAR CORRECTED")
+                except Exception:
+                    pass
+
+    def rewrite_tone(self) -> None:
+        """Handles Fn+F5 / F5 (Professional Tone & Style Transfer).
+
+        Copies selected text (or current sentence), rewrites casual or informal drafts
+        into professional corporate English, and replaces it with paced keystrokes
+        and undo support (Fn + F4).
+        """
+        if not self.config.enabled:
+            return
+
+        with self._lock:
+            # 1. Retrieve highlighted / selected text
+            selected_text, clip_backup = self.text_handler.get_selected_text()
+            if not selected_text or not selected_text.strip():
+                return
+
+            if not getattr(self.config, "tone_correction_enabled", True):
+                return
+
+            try:
+                rewritten_text = self.style_transfer.transfer_tone(selected_text)
+            except Exception as e:
+                print(f"[TypoPilot] Tone rewrite error: {e}")
+                return
+
+            if not rewritten_text or rewritten_text == selected_text:
+                return
+
+            # 2. Store in undo history
+            self.undo_manager.record_sentence_correction(
+                original=selected_text,
+                corrected=rewritten_text,
+            )
+
+            # 3. Safely replace selected text while suppressing keyboard hooks
+            self.keyboard_manager.suppress_hooks = True
+            try:
+                self.text_handler.replace_selected_text(
+                    new_text=rewritten_text,
+                    clipboard_backup=clip_backup,
+                )
+            finally:
+                self.keyboard_manager.suppress_hooks = False
+
+            # 4. Notify floating toolbar or UI
+            if self.status_notifier:
+                try:
+                    self.status_notifier("TONE REWRITTEN")
+                except Exception:
+                    pass
+
+    def handle_undo(self) -> None:
+        """Handles Fn+F4 / Ctrl+Alt+Z (Undo last correction or tone rewrite)."""
+        if not self.config.enabled:
+            return
+
+        with self._lock:
+            # Check sentence / tone correction history first
+            last_sentence = self.undo_manager.pop_last_sentence()
+            if last_sentence is not None:
+                self.keyboard_manager.suppress_hooks = True
+                try:
+                    self.text_handler.replace_selected_text(
+                        new_text=last_sentence.original_text,
+                    )
+                finally:
+                    self.keyboard_manager.suppress_hooks = False
+
+                if self.status_notifier:
+                    try:
+                        self.status_notifier("UNDO")
+                    except Exception:
+                        pass
+                return
+
+            # Check single word correction history
+            last_word = self.undo_manager.pop_last()
+            if last_word is not None:
+                orig_token = (
+                    f"{last_word.detected_token.leading_punctuation}"
+                    f"{last_word.original_word}"
+                    f"{last_word.detected_token.trailing_punctuation}"
+                    f"{last_word.detected_token.trailing_whitespace}"
+                )
+                self._execute_replacement(
+                    old_token=last_word.replaced_word,
+                    new_token=orig_token,
+                    method="uia",
+                )
+                if self.status_notifier:
+                    try:
+                        self.status_notifier("UNDO")
+                    except Exception:
+                        pass
 
     def _correct_sentence_spelling(self, text: str) -> str:
         """Baseline sentence tokenizer that fixes misspelled words within selected text."""

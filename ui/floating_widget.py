@@ -6,7 +6,7 @@ one-click emergency pausing/disabling, and quick access to settings and clean sh
 
 from __future__ import annotations
 
-from PyQt6.QtCore import QPoint, Qt, pyqtSignal
+from PyQt6.QtCore import QPoint, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QColor, QFont, QPainter, QMouseEvent
 from PyQt6.QtWidgets import (
     QApplication,
@@ -140,6 +140,12 @@ class FloatingWidget(QWidget):
             x = screen_geo.x() + (screen_geo.width() - self.width()) // 2
             y = screen_geo.y() + screen_geo.height() - self.height() - 20
             self.move(x, y)
+
+    def show_badge(self, text: str, color: str = "#38bdf8", duration_ms: int = 2500) -> None:
+        """Briefly displays an action badge (e.g. '[TONE REWRITTEN]') before reverting to regular status."""
+        self.status_label.setText(f"● {text}")
+        self.status_label.setStyleSheet(f"color: {color}; font-size: 11px; font-weight: bold;")
+        QTimer.singleShot(duration_ms, lambda: self.update_status(self.config.enabled))
 
     def update_status(self, enabled: bool) -> None:
         """Updates colors and labels according to active/paused state."""

@@ -21,6 +21,7 @@ if str(root_dir) not in sys.path:
 from config import TypoPilotConfig
 from nlp.sentence_corrector import SentenceCorrector
 from nlp.spell_checker import SpellChecker
+from nlp.style_transfer import StyleTransferEngine
 
 
 def parse_dataset_file(file_path: Path) -> Tuple[str, List[Dict]]:
@@ -54,6 +55,8 @@ def parse_dataset_file(file_path: Path) -> Tuple[str, List[Dict]]:
                 inp = row.get("input") or row.get("sentence") or row.get("original", "")
                 exp = row.get("expected") or row.get("correct") or row.get("corrected", "")
                 items.append({"input": inp, "expected": exp})
+            if "tone" in str(path_obj).lower():
+                return "tone", items
             return "sentence", items
         else:
             items = []
@@ -211,12 +214,59 @@ def evaluate_sentences(corrector: SentenceCorrector, items: List[Dict], dataset_
     return {"total": total, "accuracy": acc, "latency": avg_latency}
 
 
+def evaluate_tone_transfer(style_transfer: StyleTransferEngine, items: List[Dict], dataset_name: str = "Custom") -> Dict[str, float]:
+    """Evaluates tone and style transfer rewriting on test items."""
+    total = len(items)
+    if total == 0:
+        print("[!] No tone items found to evaluate.")
+        return {}
+
+    exact_matches = 0
+    latencies = []
+
+    print(f"\n[+] Running Professional Tone Benchmark: {dataset_name} ({total} test cases)...")
+
+    for idx, item in enumerate(items, 1):
+        inp = item["input"]
+        expected = item["expected"]
+
+        t0 = time.perf_counter()
+        actual = style_transfer.transfer_tone(inp)
+        t1 = time.perf_counter()
+
+        latencies.append((t1 - t0) * 1000.0)
+
+        # Normalize comparison
+        if actual.strip().rstrip(".!?").lower() == expected.strip().rstrip(".!?").lower():
+            exact_matches += 1
+
+        if idx % 5 == 0 or idx == total:
+            sys.stdout.write(f"\r    Processed: {idx}/{total} tone transfers (Accuracy: {exact_matches/idx*100:.1f}%)")
+            sys.stdout.flush()
+
+    print()
+
+    acc = (exact_matches / total) * 100.0
+    avg_latency = sum(latencies) / len(latencies) if latencies else 0.0
+
+    print("\n" + "=" * 65)
+    print(f"     PROFESSIONAL TONE RESULTS: {dataset_name.upper()}")
+    print("=" * 65)
+    print(f" Total Samples Evaluated:          {total}")
+    print(f" Exact Match Accuracy:             {acc:.2f}%  ({exact_matches}/{total})")
+    print(f" Average Processing Speed:         {avg_latency:.2f} ms / sentence")
+    print("=" * 65)
+
+    return {"total": total, "accuracy": acc, "latency": avg_latency}
+
+
 def main():
     base_dir = Path(__file__).resolve().parent
     norvig1_file = base_dir / "norvig_testset1.txt"
     norvig2_file = base_dir / "norvig_testset2.txt"
     default_word_file = base_dir / "word_testset.json"
     default_sentence_file = base_dir / "sentence_testset.json"
+    default_tone_file = base_dir / "tone_testset.json"
 
     print("=" * 65)
     print("           TYPOPILOT UNIVERSAL BENCHMARK SUITE")
@@ -231,12 +281,13 @@ def main():
         print("\nSelect an evaluation option:")
         print("  [1] Peter Norvig Gold Benchmark Set 1 (270 real human typos)")
         print("  [2] Peter Norvig Gold Benchmark Set 2 (400 real human typos)")
-        print("  [3] Built-in Standard Suite (129 common words + 15 sentences)")
-        print("  [4] Full Combined Evaluation (Norvig 1 + Norvig 2 + Sentences)")
+        print("  [3] Built-in Standard Suite (129 words + 15 sentences + 10 tone transfers)")
+        print("  [4] Full Combined Evaluation (Norvig 1 + Norvig 2 + Sentences + Tone)")
+        print("  [5] Professional Tone & Style Transfer Benchmark (10 tone transfers)")
         print("  [Or] Drag and drop your downloaded file (.txt, .json, .csv) here")
         print()
-        choice = input("Enter choice (1/2/3/4) or drag & drop file path [Default: 3]: ").strip().strip('"').strip("'")
-        if choice in ("1", "2", "3", "4", ""):
+        choice = input("Enter choice (1/2/3/4/5) or drag & drop file path [Default: 3]: ").strip().strip('"').strip("'")
+        if choice in ("1", "2", "3", "4", "5", ""):
             file_arg = choice
         else:
             file_arg = choice
@@ -244,6 +295,7 @@ def main():
     cfg = TypoPilotConfig()
     spell_checker = SpellChecker(cfg)
     corrector = SentenceCorrector(cfg, spell_checker)
+    style_transfer = StyleTransferEngine(cfg)
 
     # Route based on choice or file path
     if file_arg == "1":
@@ -258,6 +310,9 @@ def main():
         evaluate_words(spell_checker, word_items, "Default Word Suite")
         dtype, sent_items = parse_dataset_file(default_sentence_file)
         evaluate_sentences(corrector, sent_items, "Default Grammar Suite")
+        if default_tone_file.exists():
+            dtype, tone_items = parse_dataset_file(default_tone_file)
+            evaluate_tone_transfer(style_transfer, tone_items, "Default Tone Transfer Suite")
     elif file_arg == "4":
         # All combined
         dtype, n1_items = parse_dataset_file(norvig1_file)
@@ -267,6 +322,12 @@ def main():
         evaluate_words(spell_checker, combined_words, f"All Combined Word Sets ({len(combined_words)} words)")
         dtype, sent_items = parse_dataset_file(default_sentence_file)
         evaluate_sentences(corrector, sent_items, "Default Grammar Suite")
+        if default_tone_file.exists():
+            dtype, tone_items = parse_dataset_file(default_tone_file)
+            evaluate_tone_transfer(style_transfer, tone_items, "Default Tone Transfer Suite")
+    elif file_arg == "5":
+        dtype, tone_items = parse_dataset_file(default_tone_file)
+        evaluate_tone_transfer(style_transfer, tone_items, "Professional Tone Transfer Suite")
     else:
         # Custom user-provided file!
         target_path = Path(file_arg)
@@ -274,7 +335,9 @@ def main():
             print(f"\n[ERROR] File not found: {file_arg}")
             return
         dtype, items = parse_dataset_file(target_path)
-        if dtype == "sentence":
+        if dtype == "tone":
+            evaluate_tone_transfer(style_transfer, items, target_path.name)
+        elif dtype == "sentence":
             evaluate_sentences(corrector, items, target_path.name)
         else:
             evaluate_words(spell_checker, items, target_path.name)

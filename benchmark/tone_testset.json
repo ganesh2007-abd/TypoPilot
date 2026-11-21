@@ -1,0 +1,42 @@
+[
+  {
+    "input": "hey send me the report asap i need it",
+    "expected": "Could you please forward the report at your earliest convenience? It is urgently needed."
+  },
+  {
+    "input": "sorry cant come to meeting im busy",
+    "expected": "I apologize, but I am unable to attend the meeting due to a scheduling conflict."
+  },
+  {
+    "input": "what is up bro",
+    "expected": "I hope you are doing well."
+  },
+  {
+    "input": "talk to you later",
+    "expected": "I look forward to speaking with you soon."
+  },
+  {
+    "input": "let me know",
+    "expected": "Please keep me informed at your earliest convenience."
+  },
+  {
+    "input": "thanks a lot for your help",
+    "expected": "Thank you very much for your assistance."
+  },
+  {
+    "input": "can you fix this bug",
+    "expected": "Could you please investigate and resolve this issue?"
+  },
+  {
+    "input": "i want this done by tomorrow",
+    "expected": "Please ensure this is completed by tomorrow."
+  },
+  {
+    "input": "dont forget about the deadline",
+    "expected": "Please keep the upcoming deadline in mind."
+  },
+  {
+    "input": "give me an update",
+    "expected": "Could you please provide a status update on this matter?"
+  }
+]

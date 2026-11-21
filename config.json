@@ -13,5 +13,9 @@
     "case_sensitive_preservation": true,
     "sentence_correction_enabled": true,
     "sentence_model_name": "Unbabel/gec-t5_small",
-    "use_gpu_if_available": true
+    "use_gpu_if_available": true,
+    "tone_trigger_key": "f5",
+    "tone_correction_shortcut": "F5",
+    "tone_correction_enabled": true,
+    "tone_model_name": "prithivida/informal_to_formal_styletransfer"
 }

@@ -39,6 +39,12 @@ class TypoPilotConfig:
     sentence_model_name: str = "Unbabel/gec-t5_small"
     use_gpu_if_available: bool = True
 
+    # NLP Professional Tone & Style Transfer Settings
+    tone_trigger_key: str = "f5"
+    tone_correction_shortcut: str = "F5"
+    tone_correction_enabled: bool = True
+    tone_model_name: str = "prithivida/informal_to_formal_styletransfer"
+
     @classmethod
     def load(cls, file_path: Path | str = CONFIG_FILE_PATH) -> TypoPilotConfig:
         """Loads configuration from JSON file, falling back to defaults if missing or corrupted."""

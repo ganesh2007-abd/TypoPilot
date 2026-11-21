@@ -84,6 +84,8 @@ class KeyboardManager:
         self.on_word_correction_next: Callable[[], None] | None = None
         self.on_word_correction_prev: Callable[[], None] | None = None
         self.on_sentence_correction: Callable[[], None] | None = None
+        self.on_tone_rewrite: Callable[[], None] | None = None
+        self.on_undo: Callable[[], None] | None = None
         self.on_cancel_restore: Callable[[], None] | None = None
 
         # Busy flag: set True while a correction is executing.
@@ -96,10 +98,13 @@ class KeyboardManager:
     def reload_bindings(self) -> None:
         """Parses current hotkey configurations from config."""
         with self._lock:
+            tone_key = getattr(self.config, "tone_correction_shortcut", None) or getattr(self.config, "tone_trigger_key", "F5")
             self._hotkey_bindings = {
                 "next": parse_hotkey_string(self.config.word_correction_shortcut),
                 "prev": parse_hotkey_string(self.config.word_correction_prev_shortcut),
                 "sentence": parse_hotkey_string(self.config.sentence_correction_shortcut),
+                "tone": parse_hotkey_string(tone_key),
+                "undo": parse_hotkey_string(getattr(self.config, "undo_shortcut", "Ctrl+Alt+Z")),
                 "cancel": parse_hotkey_string(self.config.cancel_shortcut),
             }
 
@@ -162,19 +167,27 @@ class KeyboardManager:
             matched_action: str | None = None
             matched_callback: Callable[[], None] | None = None
 
-            # Priority 1: Sentence correction (Ctrl+F2 or F3 / Fn+F3 on laptops)
-            if self._matches_binding(self._hotkey_bindings.get("sentence", set())) or self._matches_binding({Key.f3}):
+            # Priority 1: Professional tone & style transfer (F5 / Fn+F5 or configured shortcut)
+            if self._matches_binding(self._hotkey_bindings.get("tone", set())) or self._matches_binding({Key.f5}):
+                matched_action = "tone"
+                matched_callback = self.on_tone_rewrite
+            # Priority 2: Sentence grammar correction (Ctrl+F2 or F3 / Fn+F3 on laptops)
+            elif self._matches_binding(self._hotkey_bindings.get("sentence", set())) or self._matches_binding({Key.f3}):
                 matched_action = "sentence"
                 matched_callback = self.on_sentence_correction
-            # Priority 2: Word correction previous (usually Shift+F2)
+            # Priority 3: Undo (Fn+F4 / F4 or Ctrl+Alt+Z)
+            elif self._matches_binding(self._hotkey_bindings.get("undo", set())) or self._matches_binding({Key.f4}):
+                matched_action = "undo"
+                matched_callback = self.on_undo
+            # Priority 4: Word correction previous (usually Shift+F2)
             elif self._matches_binding(self._hotkey_bindings.get("prev", set())):
                 matched_action = "prev"
                 matched_callback = self.on_word_correction_prev
-            # Priority 3: Word correction next / activate (usually F2)
+            # Priority 5: Word correction next / activate (usually F2)
             elif self._matches_binding(self._hotkey_bindings.get("next", set())):
                 matched_action = "next"
                 matched_callback = self.on_word_correction_next
-            # Priority 4: Cancel / Restore original (usually Esc)
+            # Priority 6: Cancel / Restore original (usually Esc)
             elif self._matches_binding(self._hotkey_bindings.get("cancel", set())):
                 matched_action = "cancel"
                 matched_callback = self.on_cancel_restore

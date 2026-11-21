@@ -16,6 +16,7 @@ from core.correction_manager import CorrectionManager
 from core.keyboard_manager import KeyboardManager
 from nlp.sentence_corrector import SentenceCorrector
 from nlp.spell_checker import SpellChecker
+from nlp.style_transfer import StyleTransferEngine
 from ui.floating_widget import FloatingWidget
 from ui.settings_window import SettingsWindow
 from ui.tray_manager import TrayManager
@@ -44,6 +45,7 @@ class TypoPilotApp:
 
         # Initialize Floating Draggable Desktop Toolbar
         self.floating_widget = FloatingWidget(self.config)
+        self.correction_manager.status_notifier = self.floating_widget.show_badge
         self.floating_widget.pause_toggled.connect(self._on_status_changed)
         self.floating_widget.settings_clicked.connect(self.show_settings)
         self.floating_widget.quit_clicked.connect(self._on_quit)
@@ -84,6 +86,7 @@ class TypoPilotApp:
         self.correction_manager.sentence_corrector = SentenceCorrector(
             updated_config, self.correction_manager.spell_checker
         )
+        self.correction_manager.style_transfer = StyleTransferEngine(updated_config)
         if self.config.tray_notifications:
             self.tray_manager.show_notification(
                 "TypoPilot Settings", "Settings have been updated successfully."
