@@ -95,3 +95,48 @@ def test_correction_manager_cycling_and_restore():
     cm.handle_cancel_restore()
     assert cm._active_session is None  # Session cleared
     assert mock_handler.typed_strings[-1] == "recieve,"  # Restored!
+
+
+def test_correction_preserves_surrounding_whitespace():
+    """Verify that spacing before and after the misspelled word is strictly preserved."""
+    cfg = TypoPilotConfig(max_suggestions=3)
+    km = KeyboardManager(cfg)
+
+    # Word preceded by space and followed by space (e.g. "I will recieve ")
+    detected = DetectedWord(
+        raw_word="recieve",
+        full_token="recieve",
+        trailing_punctuation="",
+        leading_punctuation="",
+        leading_whitespace=" ",
+        trailing_whitespace=" ",
+        chars_to_delete=9,
+        chars_after_cursor=0,
+        context_before="I will",
+        context_after="",
+        method="uia",
+    )
+
+    mock_handler = MockTextHandler(detected)
+    mock_handler.keyboard_controller = MockKeyboardController(mock_handler)
+
+    cm = CorrectionManager(
+        config=cfg,
+        keyboard_manager=km,
+        text_handler=mock_handler,
+    )
+
+    # First F2 activation
+    cm.handle_next_prediction()
+    assert mock_handler.typed_strings[-1] == " receive "
+    assert mock_handler.backspaces_tapped == 9
+
+    # Cycle F2
+    cm.handle_next_prediction()
+    second_candidate = cm._active_session.candidates[1]
+    assert mock_handler.typed_strings[-1] == f" {second_candidate} "
+
+    # Esc restoration
+    cm.handle_cancel_restore()
+    assert mock_handler.typed_strings[-1] == " recieve "
+

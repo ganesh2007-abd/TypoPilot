@@ -104,9 +104,15 @@ class CorrectionManager:
             if not suggestions:
                 return
 
-            # Calculate first replacement token
+            # Calculate first replacement token preserving punctuation and spacing
             cased = preserve_capitalization(detected.raw_word, suggestions[0])
-            first_token = f"{detected.leading_punctuation}{cased}{detected.trailing_punctuation}"
+            first_token = (
+                f"{detected.leading_whitespace}"
+                f"{detected.leading_punctuation}"
+                f"{cased}"
+                f"{detected.trailing_punctuation}"
+                f"{detected.trailing_whitespace}"
+            )
 
             # Create new session
             session = ActiveSession(
@@ -131,6 +137,8 @@ class CorrectionManager:
                 old_token=detected.full_token,
                 new_token=first_token,
                 method=detected.method,
+                chars_to_delete=detected.chars_to_delete,
+                chars_after_cursor=detected.chars_after_cursor,
             )
 
     def handle_prev_prediction(self) -> None:
@@ -159,8 +167,12 @@ class CorrectionManager:
             session = self._active_session
             assert session is not None
 
-            # Original token restoration
-            orig_token = session.detected_token.full_token
+            # Original token restoration preserving whitespace
+            orig_token = (
+                f"{session.detected_token.leading_whitespace}"
+                f"{session.detected_token.full_token}"
+                f"{session.detected_token.trailing_whitespace}"
+            )
 
             # Replace current candidate with original token
             self._execute_replacement(
@@ -231,35 +243,17 @@ class CorrectionManager:
             else:
                 result.append(token)
         return "".join(result)
-        """Handles Esc (Restore Original Misspelled Word)."""
-        if not self.config.enabled:
-            return
-
-        with self._lock:
-            if not self._is_session_valid():
-                return
-
-            session = self._active_session
-            assert session is not None
-
-            # Original token restoration
-            orig_token = session.detected_token.full_token
-
-            # Replace current candidate with original token
-            self._execute_replacement(
-                old_token=session.last_replaced_token,
-                new_token=orig_token,
-                method="uia",  # After cycling, cursor is positioned at end of replaced word
-            )
-
-            # Reset active session
-            self._active_session = None
-
     def _apply_candidate(self, session: ActiveSession, new_index: int) -> None:
         """Replaces the currently displayed candidate with the candidate at new_index."""
         candidate = session.candidates[new_index]
         cased = preserve_capitalization(session.original_word, candidate)
-        new_token = f"{session.detected_token.leading_punctuation}{cased}{session.detected_token.trailing_punctuation}"
+        new_token = (
+            f"{session.detected_token.leading_whitespace}"
+            f"{session.detected_token.leading_punctuation}"
+            f"{cased}"
+            f"{session.detected_token.trailing_punctuation}"
+            f"{session.detected_token.trailing_whitespace}"
+        )
 
         old_token = session.last_replaced_token
 
@@ -273,7 +267,14 @@ class CorrectionManager:
             method="uia",  # Subsequent cycles use backspace from caret
         )
 
-    def _execute_replacement(self, old_token: str, new_token: str, method: str) -> None:
+    def _execute_replacement(
+        self,
+        old_token: str,
+        new_token: str,
+        method: str,
+        chars_to_delete: int = 0,
+        chars_after_cursor: int = 0,
+    ) -> None:
         """Safely executes text replacement while suppressing global keyboard hooks."""
         self.keyboard_manager.suppress_hooks = True
         try:
@@ -281,10 +282,19 @@ class CorrectionManager:
                 # In fallback mode for 1st activation, text is selected in target app
                 self.text_handler.type_string(new_token)
             else:
-                # In UIA or subsequent cycles, cursor is immediately after old_token
-                for _ in range(len(old_token)):
+                # In UIA or subsequent cycles:
+                # If caret is inside word, move cursor right to the end of the word first
+                if chars_after_cursor > 0:
+                    for _ in range(chars_after_cursor):
+                        self.text_handler.keyboard_controller.tap(Key.right)
+                        time.sleep(0.003)
+
+                # Delete old token
+                num_deletions = chars_to_delete if chars_to_delete > 0 else len(old_token)
+                for _ in range(num_deletions):
                     self.text_handler.keyboard_controller.tap(Key.backspace)
-                    time.sleep(0.004)
+                    time.sleep(0.003)
+
                 self.text_handler.type_string(new_token)
         finally:
             self.keyboard_manager.suppress_hooks = False

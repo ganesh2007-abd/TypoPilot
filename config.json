@@ -3,6 +3,7 @@
     "start_with_windows": false,
     "tray_notifications": true,
     "word_correction_shortcut": "F2",
+    "word_correction_prev_shortcut": "Shift+F2",
     "sentence_correction_shortcut": "Ctrl+F2",
     "cancel_shortcut": "Esc",
     "undo_shortcut": "Ctrl+Alt+Z",

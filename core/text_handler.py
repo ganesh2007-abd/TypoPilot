@@ -18,13 +18,17 @@ from pynput.keyboard import Controller, Key
 @dataclass
 class DetectedWord:
     """Represents a word detected at or immediately before the cursor."""
-    raw_word: str              # The extracted word characters (e.g. "recieved")
-    full_token: str            # Token including any trailing punctuation (e.g. "recieved,")
-    trailing_punctuation: str  # Any trailing punctuation (e.g. ",")
-    leading_punctuation: str   # Any leading punctuation (e.g. "(")
-    context_before: str = ""   # Preceding words for context-aware NLP ranking
-    context_after: str = ""    # Subsequent words for context-aware NLP ranking
-    method: str = "uia"        # "uia" or "fallback"
+    raw_word: str                    # The extracted clean word characters (e.g. "recieved")
+    full_token: str                  # Token including punctuation (e.g. "(recieved),")
+    trailing_punctuation: str = ""   # Any trailing punctuation (e.g. "),")
+    leading_punctuation: str = ""    # Any leading punctuation (e.g. "(")
+    leading_whitespace: str = ""     # Any leading whitespace captured (e.g. " ")
+    trailing_whitespace: str = ""    # Any trailing spaces between word and cursor (e.g. " ")
+    chars_to_delete: int = 0         # Exact number of backspaces needed from cursor
+    chars_after_cursor: int = 0      # Characters after cursor if caret is positioned inside word
+    context_before: str = ""         # Preceding words for context-aware NLP ranking
+    context_after: str = ""          # Subsequent words for context-aware NLP ranking
+    method: str = "uia"              # "uia" or "fallback"
 
 
 def split_word_and_punctuation(token: str) -> Tuple[str, str, str]:
@@ -71,7 +75,7 @@ class TextHandler:
         return False
 
     def detect_word_via_uia(self) -> Optional[DetectedWord]:
-        """Attempts to detect the word immediately preceding the cursor using UI Automation TextPattern."""
+        """Attempts to detect the word at or immediately before the cursor using UI Automation TextPattern."""
         try:
             element = self.get_focused_element()
             if element is None or self.is_secure_or_password_field(element):
@@ -81,48 +85,75 @@ class TextHandler:
             if pattern is None:
                 return None
 
-            # Get selection range (a zero-length range represents the caret/cursor)
             selection = pattern.GetSelection()
             if not selection or len(selection) == 0:
                 return None
 
             caret_range = selection[0]
-            # Clone range to inspect text preceding caret
-            doc_range = pattern.DocumentRange.Clone()
 
-            # Move an inspection range back by up to 60 characters to capture preceding context
-            inspect_range = caret_range.Clone()
-            inspect_range.MoveEndpointByUnit(
+            # Inspect text preceding caret (up to 80 chars)
+            inspect_before = caret_range.Clone()
+            inspect_before.MoveEndpointByUnit(
                 auto.TextPatternRangeEndpoint.Start,
                 auto.TextUnit.Character,
-                -60,
+                -80,
             )
-            text_before = inspect_range.GetText(-1)
+            text_before = inspect_before.GetText(-1)
 
             if not text_before:
                 return None
 
-            # Find the last word token immediately before cursor
-            tokens = text_before.split()
-            if not tokens:
+            # Inspect text immediately following caret (up to 30 chars for inside-word detection)
+            text_after = ""
+            try:
+                inspect_after = caret_range.Clone()
+                inspect_after.MoveEndpointByUnit(
+                    auto.TextPatternRangeEndpoint.End,
+                    auto.TextUnit.Character,
+                    30,
+                )
+                text_after = inspect_after.GetText(-1)
+            except Exception:
+                text_after = ""
+
+            # Check word boundary before caret
+            match_before = re.search(r"([^\w\s]*)([\w\'-]+)([^\w\s]*)(\s*)$", text_before)
+            if not match_before:
                 return None
 
-            last_token = tokens[-1]
-            leading, clean_word, trailing = split_word_and_punctuation(last_token)
+            lead_punct = match_before.group(1)
+            word_part_before = match_before.group(2)
+            trail_punct = match_before.group(3)
+            trailing_spaces = match_before.group(4)
 
-            if not clean_word or not clean_word[0].isalpha():
+            # Check if caret is inside a word
+            chars_after_word = 0
+            word_part_after = ""
+            if not trailing_spaces and text_after:
+                match_after = re.match(r"^([\w\'-]+)", text_after)
+                if match_after:
+                    word_part_after = match_after.group(1)
+                    chars_after_word = len(word_part_after)
+
+            full_clean_word = word_part_before + word_part_after
+            if not full_clean_word or not any(c.isalpha() for c in full_clean_word):
                 return None
 
-            # Context before is everything prior to the last token in text_before
-            context_before = text_before[: -len(last_token)].strip()
+            full_token = f"{lead_punct}{full_clean_word}{trail_punct}"
+            chars_to_delete = len(lead_punct) + len(word_part_before) + len(trail_punct) + len(trailing_spaces)
+
+            context_before = text_before[: -chars_to_delete].strip()
 
             return DetectedWord(
-                raw_word=clean_word,
-                full_token=last_token,
-                trailing_punctuation=trailing,
-                leading_punctuation=leading,
+                raw_word=full_clean_word,
+                full_token=full_token,
+                trailing_punctuation=trail_punct,
+                leading_punctuation=lead_punct,
+                trailing_whitespace=trailing_spaces,
+                chars_to_delete=chars_to_delete,
+                chars_after_cursor=chars_after_word,
                 context_before=context_before,
-                context_after="",
+                context_after=text_after[chars_after_word:].strip(),
                 method="uia",
             )
         except Exception:
@@ -154,13 +185,17 @@ class TextHandler:
 
             selected_text = pyperclip.paste()
 
-            # Validate that selected text is a valid single word (not whole paragraph/empty)
-            if not selected_text or "\n" in selected_text or " " in selected_text.strip():
+            # Check leading and trailing whitespace captured by Windows selection
+            lead_spaces = selected_text[: len(selected_text) - len(selected_text.lstrip())]
+            trail_spaces = selected_text[len(selected_text.rstrip()):]
+            clean_token = selected_text.strip()
+
+            if not clean_token or "\n" in clean_token or " " in clean_token:
                 # Deselect by pressing Right arrow to restore cursor
                 self.keyboard_controller.tap(Key.right)
                 return None
 
-            leading, clean_word, trailing = split_word_and_punctuation(selected_text)
+            leading, clean_word, trailing = split_word_and_punctuation(clean_token)
             if not clean_word or not any(c.isalpha() for c in clean_word):
                 # Deselect and return cursor
                 self.keyboard_controller.tap(Key.right)
@@ -168,9 +203,13 @@ class TextHandler:
 
             return DetectedWord(
                 raw_word=clean_word,
-                full_token=selected_text,
+                full_token=f"{leading}{clean_word}{trailing}",
                 trailing_punctuation=trailing,
                 leading_punctuation=leading,
+                leading_whitespace=lead_spaces,
+                trailing_whitespace=trail_spaces,
+                chars_to_delete=len(clean_token),
+                chars_after_cursor=0,
                 context_before="",
                 context_after="",
                 method="fallback",
