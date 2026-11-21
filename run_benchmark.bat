@@ -6,7 +6,7 @@ echo   Running TypoPilot Benchmark Evaluator...
 echo ========================================================
 echo.
 
-"%~dp0.venv\Scripts\python.exe" "%~dp0benchmark\evaluator.py"
+"%~dp0.venv\Scripts\python.exe" "%~dp0benchmark\evaluator.py" %*
 
 echo.
 echo ========================================================
