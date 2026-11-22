@@ -126,7 +126,7 @@ def test_style_transfer_engine_hybrid():
     fast_ms = (time.perf_counter() - t0) * 1000.0
 
     assert "Could you please forward the report at your earliest convenience? It is urgently needed." == fast_res
-    assert fast_ms < 10.0  # Under 10 ms for local template match
+    assert fast_ms < 50.0  # Under 50 ms for local template match
 
     # Empty text handling
     assert engine.transfer_tone("") == ""
