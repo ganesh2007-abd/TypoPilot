@@ -113,9 +113,22 @@ class KeyboardManager:
         if self._listener is not None and self._listener.is_alive():
             return
 
+        def _win32_filter(msg, data):
+            # Suppress bare VK_F5 (0x74) from reaching Windows applications (such as Notepad,
+            # which by default intercepts F5 to insert the current date and time).
+            if self.config.enabled and not self.suppress_hooks:
+                if getattr(data, "vkCode", None) == 0x74:  # VK_F5
+                    if self._listener is not None:
+                        try:
+                            self._listener.suppress_event()
+                        except Exception:
+                            pass
+            return True
+
         self._listener = keyboard.Listener(
             on_press=self._on_press,
             on_release=self._on_release,
+            win32_event_filter=_win32_filter,
         )
         self._listener.daemon = True
         self._listener.start()
@@ -167,8 +180,13 @@ class KeyboardManager:
             matched_action: str | None = None
             matched_callback: Callable[[], None] | None = None
 
-            # Priority 1: Professional tone & style transfer (F5 / Fn+F5 or configured shortcut)
-            if self._matches_binding(self._hotkey_bindings.get("tone", set())) or self._matches_binding({Key.f5}):
+            # Priority 1: Professional tone & style transfer (F5 / Fn+F5, F6 / Fn+F6, or Ctrl+F5)
+            if (
+                self._matches_binding(self._hotkey_bindings.get("tone", set()))
+                or self._matches_binding({Key.f5})
+                or self._matches_binding({Key.f6})
+                or self._matches_binding({Key.ctrl_l, Key.f5})
+            ):
                 matched_action = "tone"
                 matched_callback = self.on_tone_rewrite
             # Priority 2: Sentence grammar correction (Ctrl+F2 or F3 / Fn+F3 on laptops)
